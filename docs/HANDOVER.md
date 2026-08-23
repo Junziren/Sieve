@@ -109,10 +109,10 @@ E:\Sieve-restore\     旧提交 3cef388 的 git worktree（DSP 验收版的独�
 
 **最近一次实测**：2026-08-23，用户在安装副本中将音频文件拖入波形区，成功加载；`DROP AUDIO FILE` 提示在加载后隐藏。
 
-**Apple CI 验证**：GitHub Actions run `32636028333` 于 2026-08-23 成功完成两套构建。产物已核对包含 VST3、AU、Standalone 和 AUv3 app extension：
+**Apple CI 验证**：GitHub Actions run `32636991601` 于 2026-08-23 成功完成 arm64 与 Intel 两套构建。产物已核对包含 VST3、AU、Standalone 和 AUv3 app extension：
 
-- `Sieve-v1.0.0-macos-arm64.zip`：`56d2d0b2532997ce748c8def8ea0f2d28dc04eafdca57eff0f47ebb79a15cc69`
-- `Sieve-v1.0.0-macos-x86_64.zip`：`7b3d035d38be032cb95b3375a698f906aa5de67822c6cf834b619428df1c8e2c`
+- `Sieve-v1.0.0-macos-arm64.zip`：`6f65d86729f1def3fdc4f90b18fa54bfc7c6933776141d40a68c715a1d0928c8`
+- `Sieve-v1.0.0-macos-x86_64.zip`：`1b57f5432826e6a5e3b189adad30988278c38d3618dd1192a42aba1c05f0fcc6`
 
 这两份是未使用发行证书签名/公证的验证归档，尚未代表 macOS DAW、AUv3 宿主或 iPhone/iPad 真机验收。
 
