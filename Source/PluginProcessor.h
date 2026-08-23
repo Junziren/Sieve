@@ -1,5 +1,6 @@
 #pragma once
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_dsp/juce_dsp.h>
 #include "Core/Common.h"
 #include "Core/GrainEngine.h"
 #include "Core/GrainVoice.h"
@@ -95,7 +96,7 @@ private:
     float masterGain = 0.8f;
     float masterPan  = 0.0f;
     float grainDurationFactor = 1.0f;
-    float limiterHoldL = 0.0f, limiterHoldR = 0.0f, limiterCeilDb = -1.0f;
+    juce::dsp::Limiter<float> limiter;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SortSynthAudioProcessor)
 };

@@ -8,6 +8,7 @@ GrainVoice::GrainVoice() { recalcRates(); }
 void GrainVoice::prepare(double sr) {
     sampleRate = sr;
     recalcRates();
+    stealFadeLen = juce::jmax(8, static_cast<int>(0.002 * sr));
     reset();
 }
 
@@ -19,9 +20,11 @@ void GrainVoice::recalcRates() {
 }
 
 void GrainVoice::setGrain(const Grain& g, const float* buf, int len,
-                           float pr, float vel, float grainDurationFactor) {
+                           float pr, float vel, float grainDurationFactor, int ownerNote_) {
     sourceData  = buf;
     sourceLength = len;
+    ownerNote = ownerNote_;
+    velocityScale = juce::jlimit(0.0f, 1.0f, vel);
     pitchRate.store(pr, std::memory_order_release);
     playbackPos  = (g.startMs / 1000.0) * sampleRate;
 
@@ -29,9 +32,25 @@ void GrainVoice::setGrain(const Grain& g, const float* buf, int len,
     double grainLenMs = g.durationMs * grainDurationFactor;
     grainEndSample = static_cast<int>(playbackPos + (grainLenMs / 1000.0) * sampleRate);
     if (grainEndSample > sourceLength) grainEndSample = sourceLength;
+
+    // Fade-out spans 35% of the grain (never longer than the user release),
+    // stretched to at least 8 output samples so fast pitch rates stay smooth.
+    double grainSamples  = static_cast<double>(grainEndSample) - playbackPos;
+    double releaseSamples = (releaseMs / 1000.0) * sampleRate;
+    fadeOutLen = juce::jmin(grainSamples * 0.35, releaseSamples);
+    fadeOutLen = juce::jmin(juce::jmax(fadeOutLen, 8.0 * static_cast<double>(pr)), grainSamples);
+    fadeOutLen = juce::jmax(1.0, fadeOutLen);
 }
 
 void GrainVoice::noteOn() {
+    if (active.load(std::memory_order_acquire) && envLevel > 0.0001f) {
+        // Slot stolen mid-grain: blend down from the current level over ~2ms
+        stealFadeLevel = envLevel;
+        stealFadeSamples = stealFadeLen;
+    } else {
+        stealFadeLevel = 0.0f;
+        stealFadeSamples = 0;
+    }
     phase = EnvPhase::Attack;
     envLevel = 0.0f;
     active.store(true, std::memory_order_release);
@@ -81,7 +100,25 @@ void GrainVoice::renderNextBlock(juce::AudioBuffer<float>& output, int start, in
             return;
         }
 
-        if (envLevel <= 0.0f) continue;
+        float env = envLevel;
+        if (stealFadeSamples > 0) {
+            float t = static_cast<float>(stealFadeSamples) / static_cast<float>(stealFadeLen);
+            env = juce::jmin(1.0f, env + stealFadeLevel * t);
+            --stealFadeSamples;
+        }
+
+        if (env <= 0.0f) continue;
+
+        double remaining = static_cast<double>(grainEndSample) - playbackPos;
+        if (remaining <= 0.0) {
+            phase = EnvPhase::Idle; envLevel = 0.0f;
+            active.store(false, std::memory_order_release);
+            return;
+        }
+
+        float windowGain = 1.0f;
+        if (fadeOutLen > 0.0 && remaining < fadeOutLen)
+            windowGain = static_cast<float>(remaining / fadeOutLen);
 
         // Sample with linear interpolation
         if (sourceData && playbackPos >= 0.0 && playbackPos < static_cast<double>(sourceLength)) {
@@ -89,14 +126,14 @@ void GrainVoice::renderNextBlock(juce::AudioBuffer<float>& output, int start, in
             float frac = static_cast<float>(playbackPos - idx);
             float s0 = sourceData[idx];
             float s1 = (idx + 1 < sourceLength) ? sourceData[idx + 1] : s0;
-            float samp = (s0 + (s1 - s0) * frac) * envLevel * mg;
+            float samp = (s0 + (s1 - s0) * frac) * env * windowGain * velocityScale * mg;
             L[i] += samp * panL;
             R[i] += samp * panR;
         }
 
         playbackPos += pr;
 
-        // Stop when grain duration is exceeded
+        // Grain finished (windowGain already brought amplitude to ~0 here)
         if (playbackPos >= static_cast<double>(grainEndSample) ||
             playbackPos >= static_cast<double>(sourceLength) ||
             playbackPos < 0.0) {
@@ -109,6 +146,8 @@ void GrainVoice::renderNextBlock(juce::AudioBuffer<float>& output, int start, in
 
 void GrainVoice::reset() {
     sourceData = nullptr; sourceLength = 0; grainEndSample = 0;
+    fadeOutLen = 0.0; stealFadeLevel = 0.0f; stealFadeSamples = 0;
+    velocityScale = 1.0f; ownerNote = -1;
     playbackPos = 0.0; phase = EnvPhase::Idle; envLevel = 0.0f;
     active.store(false, std::memory_order_release);
     pitchRate.store(1.0f, std::memory_order_release);

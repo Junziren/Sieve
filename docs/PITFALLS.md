@@ -55,3 +55,13 @@
 | lambda paint | 子类 override |
 | PowerShell 字符串换行 | heredoc @' '@ |
 | JUCE 免费版许可 | GPLv3 |
+
+## Phase 7: DSP 防爆音修复 (2026-08-23)
+[2026-08-23] 颗粒尾部硬切爆音（sustain 电平直接砍 0）→ setGrain 预计算 fadeOutLen = min(颗粒长×35%, 用户release)，且 ≥ 8×pitchRate 保证高速播放下平滑，renderNextBlock 按 remaining 乘线性窗
+[2026-08-23] 颗粒池纯轮转，高速排序时抢占正在发声的 voice → 电平跳变蜂鸣 → advanceVoice 先扫描空闲槽，全忙才轮转抢占；noteOn 记录旧 envLevel 做 ~2ms 交叉淡出（GrainVoice stealFade*）
+[2026-08-23] pitchRate 无钳制（MIDI 127 → ~40x 采样，线性插值混叠严重）→ noteToRate() 钳制 ±24 半音（0.25x–4x）
+[2026-08-23] 手写峰值限幅器无 lookahead、瞬时增益钳制 → 密集颗粒流下劈啪/抽吸 → 换 juce::dsp::Limiter (threshold -1dB, release 100ms)，CMake 链接 juce::juce_dsp
+[2026-08-23] note-off 释放所有 active 颗粒（误伤其他按住的音符）→ GrainVoice 新增 ownerNote，按音符归属释放
+[2026-08-23] velocity 传入 setGrain 但从未使用 → velocityScale 乘进输出电平
+[2026-08-23] 构建脚本硬编码 D:\SortSynth（项目已迁至 E:）→ 全部改 %~dp0 位置无关；build_configure.bat 中 vcvars >nul 重定向（已知坑）已移除
+[2026-08-23] build/ CMake 缓存指向旧源目录 → 删整个 build/ 重配（juce_build 子目录有独立缓存，只删 CMakeCache.txt 不够）

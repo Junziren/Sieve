@@ -4,6 +4,13 @@
 
 namespace SortSynth {
 
+// Transposition is clamped to ±24 semitones (0.25x–4x): beyond that,
+// linear-interpolation resampling aliases audibly on tonal material.
+static float noteToRate(int midiNote) {
+    float semis = juce::jlimit(-24.0f, 24.0f, static_cast<float>(midiNote) - 60.0f);
+    return std::pow(2.0f, semis / 12.0f);
+}
+
 SortSynthAudioProcessor::SortSynthAudioProcessor()
     : juce::AudioProcessor(BusesProperties().withOutput("Output", juce::AudioChannelSet::stereo(), true))
     , apvts(*this, nullptr, "PARAMETERS", createParameterLayout())
@@ -42,12 +49,20 @@ juce::AudioProcessorValueTreeState::ParameterLayout SortSynthAudioProcessor::cre
     return layout;
 }
 
-void SortSynthAudioProcessor::prepareToPlay(double sampleRate, int /*maxBlock*/) {
+void SortSynthAudioProcessor::prepareToPlay(double sampleRate, int maxBlock) {
     currentSampleRate = sampleRate;
     for (auto& v : grainVoices) v.prepare(sampleRate);
     for (auto& vs : voices) vs.reset();
     tickCounter = 0;
-    limiterHoldL = 0.0f; limiterHoldR = 0.0f;
+
+    juce::dsp::ProcessSpec spec{
+        sampleRate,
+        static_cast<juce::uint32>(juce::jmax(1, maxBlock)),
+        static_cast<juce::uint32>(juce::jmax(1u, static_cast<unsigned>(getTotalNumOutputChannels()))) };
+    limiter.reset();
+    limiter.prepare(spec);
+    limiter.setThreshold(-1.0f);
+    limiter.setRelease(100.0f);
 }
 
 void SortSynthAudioProcessor::releaseResources() {
@@ -138,21 +153,8 @@ void SortSynthAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
         tickCounter++;
     }
 
-    // Soft limiter
-    float ceilLin = std::pow(10.0f, limiterCeilDb / 20.0f);
-    auto* L = buffer.getWritePointer(0);
-    auto* R = buffer.getNumChannels() > 1 ? buffer.getWritePointer(1) : L;
-    for (int i = 0; i < totalSamples; ++i) {
-        auto limit = [&](float& hold, float& sample) {
-            float absSample = std::abs(sample);
-            if (absSample > hold) hold = absSample;
-            else hold *= 0.9999f;
-            float gain = (hold > ceilLin) ? ceilLin / hold : 1.0f;
-            sample *= gain;
-        };
-        limit(limiterHoldL, L[i]);
-        limit(limiterHoldR, R[i]);
-    }
+    juce::dsp::AudioBlock<float> block(buffer);
+    limiter.process(juce::dsp::ProcessContextReplacing<float>(block));
 }
 
 void SortSynthAudioProcessor::handleMidi(const juce::MidiBuffer& midi) {
@@ -184,7 +186,7 @@ void SortSynthAudioProcessor::processVoiceMessages() {
                     // Sort completed → shuffle and restart
                     vs.softReset();
                     vs.midiNote = vm.midiNote;
-                    vs.pitchRate = std::pow(2.0f, (vm.midiNote - 60.0f) / 12.0f);
+                    vs.pitchRate = noteToRate(vm.midiNote);
                     vs.velocity = vm.velocity;
                     vs.active = true;
                     rebuildStepsForVoice(slot);
@@ -192,7 +194,7 @@ void SortSynthAudioProcessor::processVoiceMessages() {
                     // Paused mid-sort → resume
                     vs.paused = false;
                     vs.velocity = vm.velocity;
-                    vs.pitchRate = std::pow(2.0f, (vm.midiNote - 60.0f) / 12.0f);
+                    vs.pitchRate = noteToRate(vm.midiNote);
                 }
             } else {
                 // 2. No paused/completed match → find free or steal
@@ -202,18 +204,18 @@ void SortSynthAudioProcessor::processVoiceMessages() {
                 vs.reset();
                 vs.active = true;
                 vs.midiNote = vm.midiNote;
-                vs.pitchRate = std::pow(2.0f, (vm.midiNote - 60.0f) / 12.0f);
+                vs.pitchRate = noteToRate(vm.midiNote);
                 vs.velocity = vm.velocity;
                 rebuildStepsForVoice(slot);
             }
         } else if (vm.type == VoiceMessage::Release) {
             for (int i = 0; i < MAX_VOICES; ++i) {
                 if (voices[i].active && voices[i].midiNote == vm.midiNote && !voices[i].paused) {
-                    voices[i].paused = true;
-                    // Note-off all active grain voices (envelope → release)
-                    for (auto& gv : grainVoices) {
-                        if (gv.isActive()) gv.noteOff();
-                    }
+                voices[i].paused = true;
+                // Note-off only the grains belonging to this note
+                for (auto& gv : grainVoices) {
+                    if (gv.isActive() && gv.getOwnerNote() == vm.midiNote) gv.noteOff();
+                }
                 }
             }
         }
@@ -264,10 +266,21 @@ void SortSynthAudioProcessor::advanceVoice(int voiceId) {
             grainIdx = vs.currentValues[static_cast<size_t>(grainIdx)];
 
         if (grainIdx >= 0 && grainIdx < static_cast<int>(grains.size())) {
-            auto& gv = grainVoices[nextGrainVoice];
-            nextGrainVoice = (nextGrainVoice + 1) % static_cast<int>(grainVoices.size());
+            // Prefer an idle pool slot; round-robin steal only when all 16 are
+            // busy (the steal fades out via GrainVoice::noteOn)
+            int poolSize = static_cast<int>(grainVoices.size());
+            int slot = -1;
+            for (int i = 0; i < poolSize; ++i) {
+                int candidate = (nextGrainVoice + i) % poolSize;
+                if (!grainVoices[candidate].isActive()) { slot = candidate; break; }
+            }
+            if (slot < 0) slot = nextGrainVoice % poolSize;
+            nextGrainVoice = (slot + 1) % poolSize;
+
             const auto& grain = grains[static_cast<size_t>(grainIdx)];
-            gv.setGrain(grain, audioData, totalSamples, vs.pitchRate, vs.velocity, grainDurationFactor);
+            auto& gv = grainVoices[slot];
+            gv.setGrain(grain, audioData, totalSamples, vs.pitchRate, vs.velocity,
+                        grainDurationFactor, vs.midiNote);
             gv.noteOn();
         }
 
