@@ -42,7 +42,7 @@ struct VoiceMessage {
 class SortSynthAudioProcessor : public juce::AudioProcessor {
 public:
     static constexpr int MAX_VOICES = 4;
-    static constexpr int GRAIN_POOL_SIZE = 32;
+    static constexpr int GRAIN_POOL_SIZE = 48;
 
     SortSynthAudioProcessor();
     ~SortSynthAudioProcessor() override;

@@ -266,19 +266,17 @@ void SortSynthAudioProcessor::advanceVoice(int voiceId) {
             grainIdx = vs.currentValues[static_cast<size_t>(grainIdx)];
 
         if (grainIdx >= 0 && grainIdx < static_cast<int>(grains.size())) {
-            // Idle slot first; otherwise steal one already in its tail fade
-            // (inaudible). Stealing a full-level slot causes a periodic
-            // waveform discontinuity at the sort tick rate — heard as a
-            // buzz — so when the pool is fully saturated this step's grain
-            // is skipped instead.
+            // Reuse only fully-idle slots. Any steal - even deep in a grain's
+            // tail fade - jumps the waveform to new content at the old level;
+            // at the sort tick rate those jumps repeat periodically and are
+            // heard as a high-frequency buzz. Under saturation this step's
+            // grain is skipped instead.
             int poolSize = static_cast<int>(grainVoices.size());
-            int slot = -1, tailSlot = -1;
+            int slot = -1;
             for (int i = 0; i < poolSize; ++i) {
                 int candidate = (nextGrainVoice + i) % poolSize;
                 if (!grainVoices[candidate].isActive()) { slot = candidate; break; }
-                if (tailSlot < 0 && grainVoices[candidate].isTailFading()) tailSlot = candidate;
             }
-            if (slot < 0) slot = tailSlot;
             nextGrainVoice = (nextGrainVoice + 1) % poolSize;
 
             if (slot >= 0) {
