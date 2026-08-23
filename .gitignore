@@ -1,0 +1,23 @@
+# Build
+build/
+build-*/
+out/
+*.obj
+*.lib
+*.dll
+*.exp
+*.pdb
+*.ilk
+
+# JUCE framework (pristine third-party, 117MB — re-download from juce.com)
+JUCE/
+
+# Logs / CMake
+*.log
+CMakeUserPresets.json
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

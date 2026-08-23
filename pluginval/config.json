@@ -1,0 +1,14 @@
+{
+    "pluginval": {
+        "strict": true,
+        "skip_gui_tests": false,
+        "timeout_ms": 30000
+    },
+    "tests": {
+        "process_audio": true,
+        "midi_input": true,
+        "state_save_restore": true,
+        "bus_layout": true,
+        "tail_length": true
+    }
+}
