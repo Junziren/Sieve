@@ -266,22 +266,28 @@ void SortSynthAudioProcessor::advanceVoice(int voiceId) {
             grainIdx = vs.currentValues[static_cast<size_t>(grainIdx)];
 
         if (grainIdx >= 0 && grainIdx < static_cast<int>(grains.size())) {
-            // Prefer an idle pool slot; round-robin steal only when all 16 are
-            // busy (the steal fades out via GrainVoice::noteOn)
+            // Idle slot first; otherwise steal one already in its tail fade
+            // (inaudible). Stealing a full-level slot causes a periodic
+            // waveform discontinuity at the sort tick rate — heard as a
+            // buzz — so when the pool is fully saturated this step's grain
+            // is skipped instead.
             int poolSize = static_cast<int>(grainVoices.size());
-            int slot = -1;
+            int slot = -1, tailSlot = -1;
             for (int i = 0; i < poolSize; ++i) {
                 int candidate = (nextGrainVoice + i) % poolSize;
                 if (!grainVoices[candidate].isActive()) { slot = candidate; break; }
+                if (tailSlot < 0 && grainVoices[candidate].isTailFading()) tailSlot = candidate;
             }
-            if (slot < 0) slot = nextGrainVoice % poolSize;
-            nextGrainVoice = (slot + 1) % poolSize;
+            if (slot < 0) slot = tailSlot;
+            nextGrainVoice = (nextGrainVoice + 1) % poolSize;
 
-            const auto& grain = grains[static_cast<size_t>(grainIdx)];
-            auto& gv = grainVoices[slot];
-            gv.setGrain(grain, audioData, totalSamples, vs.pitchRate, vs.velocity,
-                        grainDurationFactor, vs.midiNote);
-            gv.noteOn();
+            if (slot >= 0) {
+                const auto& grain = grains[static_cast<size_t>(grainIdx)];
+                auto& gv = grainVoices[slot];
+                gv.setGrain(grain, audioData, totalSamples, vs.pitchRate, vs.velocity,
+                            grainDurationFactor, vs.midiNote);
+                gv.noteOn();
+            }
         }
 
         ++vs.stepIndex;

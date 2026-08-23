@@ -65,3 +65,5 @@
 [2026-08-23] velocity 传入 setGrain 但从未使用 → velocityScale 乘进输出电平
 [2026-08-23] 构建脚本硬编码 D:\SortSynth（项目已迁至 E:）→ 全部改 %~dp0 位置无关；build_configure.bat 中 vcvars >nul 重定向（已知坑）已移除
 [2026-08-23] build/ CMake 缓存指向旧源目录 → 删整个 build/ 重配（juce_build 子目录有独立缓存，只删 CMakeCache.txt 不够）
+[2026-08-23] duration 调高后出现电流声：颗粒变长 → 16 voice 池全忙 → 每个排序步进都抢占全电平槽，波形跳变以步进频率周期出现（1ms 步进 = 1kHz 蜂鸣）。修法：池扩到 32；抢占只允许已在尾部淡出的槽（isTailFading，听不见跳变）；全忙则跳过该步音频触发（密度上限）。教训：包络连续 ≠ 无爆音，波形跳变才决定听感
+[2026-08-23] 头文件里 getter（公有区）先于常量声明（私有区）使用 GRAIN_POOL_SIZE → C2065；类内常量要么提到 class 开头，要么注意声明顺序

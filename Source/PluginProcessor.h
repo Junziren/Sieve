@@ -41,6 +41,9 @@ struct VoiceMessage {
 
 class SortSynthAudioProcessor : public juce::AudioProcessor {
 public:
+    static constexpr int MAX_VOICES = 4;
+    static constexpr int GRAIN_POOL_SIZE = 32;
+
     SortSynthAudioProcessor();
     ~SortSynthAudioProcessor() override;
     void prepareToPlay(double, int) override;
@@ -66,7 +69,7 @@ public:
     juce::AudioProcessorValueTreeState apvts;
     GrainEngine grainEngine;
     const std::array<VoiceState, 4>& getVoiceStates() const { return voices; }
-    const std::array<GrainVoice, 16>& getGrainVoices() const { return grainVoices; }
+    const std::array<GrainVoice, GRAIN_POOL_SIZE>& getGrainVoices() const { return grainVoices; }
     LoadResult loadFile(const juce::File& file);
     void panic();
     void resetAllVoices();
@@ -81,9 +84,8 @@ private:
     int  findPausedOrCompletedVoice(int midiNote);
     int  stealVoice();
 
-    static constexpr int MAX_VOICES = 4;
     std::array<VoiceState, MAX_VOICES> voices;
-    std::array<GrainVoice, 16> grainVoices;
+    std::array<GrainVoice, GRAIN_POOL_SIZE> grainVoices;
     int nextGrainVoice = 0;
     SPSCQueue<VoiceMessage, 64> voiceMessageQueue;
 
