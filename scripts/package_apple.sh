@@ -48,6 +48,9 @@ cp "$root_dir/LICENSE.md" "$package_root/LICENSE.md"
 cp "$root_dir/THIRD_PARTY_LICENSES.md" "$package_root/THIRD_PARTY_LICENSES.md"
 
 ditto -c -k --sequesterRsrc --keepParent "$package_root" "$archive"
-shasum -a 256 "$archive" | tee "$archive.sha256"
+(
+    cd "$dist_root"
+    shasum -a 256 "$(basename "$archive")"
+) | tee "$archive.sha256"
 
 echo "Apple package: $archive"

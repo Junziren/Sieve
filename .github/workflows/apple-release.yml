@@ -13,7 +13,6 @@ on:
       - 'README.md'
       - 'LICENSE.md'
       - 'THIRD_PARTY_LICENSES.md'
-      - 'docs/**'
       - 'scripts/package_apple.sh'
 
 permissions:
