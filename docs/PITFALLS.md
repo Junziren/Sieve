@@ -70,3 +70,12 @@
 [2026-08-23] 电流声残留：抢占淡出的基准电平错用 envLevel（不含尾部窗增益），被抢的尾部槽实际输出只有 envLevel×window，新颗粒却按全 envLevel 起跳 → 抢占瞬间向上跳变。修法：noteOn 里按 envLevel×当前窗增益记录 stealFadeLevel
 [2026-08-23] 尾部抢占阈值 fadeOutLen×0.5 太松（波形跳变幅度 ∝ 阈值）→ 收紧到 ×0.2；边界回退线性插值，采样从线性升级 Catmull-Rom（成像抑制）
 [2026-08-23] 高频电流声仍残留：即使抢占基准电平已含窗增益（包络连续），被抢槽的"波形"仍在旧电平处跳到新内容——单槽复用数学上不可能波形连续，且跳变以步进频率周期重复（speed=1ms → 1kHz 蜂鸣，音高随 speed 变化）。终极修法：彻底去掉抢占，只复用完全空闲槽，全忙则跳过该步触发；池 32→48 补偿密度。教训：连续性必须看波形，包络/电平连续只是必要条件
+
+## Phase 8: WebView 界面 (2026-08-23)
+[2026-08-23] 设计参考抓取：minimal.audio 403 拒绝 WebFetch → 从 MusicTech 评测页 curl 提取截图 URL，视觉模型分析两张截图确认设计语言（近黑底/深灰面板/紫高亮/白标记），Sound on Sound 文字佐证"灰与紫"
+[2026-08-23] JUCE WebView 三连坑：① JUCE_WEB_BROWSER=0 默认关闭 ② JUCE_USE_WIN_WEBVIEW2 默认 0（不开则 withResourceProvider 整个不存在，报"不是成员"）③ 动态加载也需 SDK 头文件 WebView2.h。三个都要显式设置/提供
+[2026-08-23] WebView2 SDK 获取：nuget 包就是 zip，curl 直接下 https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/<ver> 解压到 %USERPROFILE%/AppData/Local/PackageManagement/NuGet/Packages/Microsoft.Web.WebView2.<ver>/，JUCE 的 FindWebView2.cmake 自动发现，静态链接 WebView2LoaderStatic.lib（免 DLL 部署）
+[2026-08-23] juce_add_binary_data 的 SOURCES 路径要相对 CMakeLists 所在目录算清（Source/CMakeLists 引用 ../Resources/web），路径错了 ninja 报 missing and no known rule
+[2026-08-23] BinaryData:: 符号要 #include <BinaryData.h>，链接 binary data target 后 include 路径自动可用
+[2026-08-23] Web UI 无头截图验证：chrome --headless --screenshot + --virtual-time-budget=4000（否则入场动画没播完，面板半透明）；emitImage 不生效时存 PNG 再用视觉模型分析
+[2026-08-23] WebView2 用户数据目录必须显式指定（temp/SieveWebView2），否则默认写宿主 DAW 目录可能无权限

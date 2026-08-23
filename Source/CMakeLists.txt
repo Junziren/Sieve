@@ -32,8 +32,15 @@ target_sources(Sieve PRIVATE
 
 target_compile_options(Sieve PRIVATE /utf-8)
 
+juce_add_binary_data(SieveWebUI SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/../Resources/web/index.html
+    ${CMAKE_CURRENT_SOURCE_DIR}/../Resources/web/app.css
+    ${CMAKE_CURRENT_SOURCE_DIR}/../Resources/web/app.js
+)
+
 target_compile_definitions(Sieve PRIVATE
-    JUCE_WEB_BROWSER=0
+    JUCE_WEB_BROWSER=1
+    JUCE_USE_WIN_WEBVIEW2_WITH_STATIC_LINKING=1
     JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0
     JUCE_DISABLE_JUCE_VERSION_PRINTING=1
@@ -46,6 +53,8 @@ target_link_libraries(Sieve
         juce::juce_audio_utils
         juce::juce_gui_extra
         juce::juce_dsp
+        juce::juce_webview2
+        SieveWebUI
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags

@@ -8,4 +8,8 @@ set(CMAKE_C_STANDARD 17)
 
 add_subdirectory(JUCE ${CMAKE_BINARY_DIR}/juce_build)
 
+# WebView2 SDK (headers + static loader) for the WebView plugin GUI
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/JUCE/extras/Build/CMake")
+find_package(WebView2 REQUIRED)
+
 add_subdirectory(Source)

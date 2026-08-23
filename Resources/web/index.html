@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sieve</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ================= HEADER ================= -->
+  <header id="header">
+    <div class="brand">
+      <div class="logo">
+        <svg width="18" height="18" viewBox="0 0 18 18">
+          <path d="M2 3h14v3H2zM2 7.5h14v3H2zM2 12h8.5v3H2z" fill="url(#lg)"/>
+          <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#b98bff"/><stop offset="1" stop-color="#7c3aed"/>
+          </linearGradient></defs>
+        </svg>
+        <span class="wordmark">SIEVE</span>
+      </div>
+      <span class="subtitle">SORT-ALGORITHM GRANULAR SYNTH</span>
+    </div>
+    <div class="header-center">
+      <div class="preset-chip">
+        <span class="preset-dot"></span>
+        <span id="preset-name">UNTITLED SORTING</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="badge badge-warn" id="badge-preview">UI PREVIEW &middot; DSP NOT CONNECTED</div>
+      <div class="badge">v1.1.0</div>
+    </div>
+  </header>
+
+  <div id="body">
+
+    <!-- ================= NAV RAIL ================= -->
+    <nav id="rail">
+      <div class="rail-sections">
+        <button class="rail-tab active" data-tab="sort">
+          <svg viewBox="0 0 16 16"><path d="M3 2h10M6 2v12M3 8h6" stroke="currentColor" fill="none" stroke-width="1.4"/></svg>
+          SORT
+        </button>
+        <button class="rail-tab" data-tab="synth">
+          <svg viewBox="0 0 16 16"><path d="M2 12c3-8 9-8 12 0" stroke="currentColor" fill="none" stroke-width="1.4"/></svg>
+          SYNTH
+        </button>
+        <button class="rail-tab" data-tab="view">
+          <svg viewBox="0 0 16 16"><path d="M2 4h12v8H2zM2 8h12" stroke="currentColor" fill="none" stroke-width="1.4"/></svg>
+          VIEW
+        </button>
+      </div>
+      <div class="rail-stats">
+        <div class="rail-stat"><span class="rs-label">VOICES</span><span class="rs-value" id="stat-voices">0 / 4</span></div>
+        <div class="rail-stat"><span class="rs-label">GRAINS</span><span class="rs-value" id="stat-grains">&mdash;</span></div>
+        <div class="rail-stat"><span class="rs-label">STEPS</span><span class="rs-value" id="stat-steps">&mdash;</span></div>
+        <div class="rail-stat"><span class="rs-label">ENGINE</span><span class="rs-value rs-ok" id="stat-engine">IDLE</span></div>
+      </div>
+    </nav>
+
+    <!-- ================= MAIN ================= -->
+    <main id="main">
+
+      <!-- SORT -->
+      <section class="panel" id="panel-sort">
+        <div class="panel-label">SORT</div>
+        <div class="panel-content sort-row">
+          <div class="control-group">
+            <div class="micro-label">ALGORITHM</div>
+            <div class="combo" id="algo-combo" tabindex="0">
+              <div class="combo-button">
+                <span id="algo-name">Bubble</span>
+                <span class="combo-badge" id="algo-badge">O(n&#178;)</span>
+                <svg class="combo-caret" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" fill="none" stroke-width="1.4"/></svg>
+              </div>
+              <div class="combo-list" id="algo-list"></div>
+            </div>
+          </div>
+          <div class="control-group">
+            <div class="micro-label">SLICES</div>
+            <div class="stepper" id="slice-stepper">
+              <button class="step-btn" data-dir="-1">&minus;</button>
+              <span class="step-value" id="slice-value">128</span>
+              <button class="step-btn" data-dir="1">+</button>
+            </div>
+          </div>
+          <div class="knob" data-param="speed"></div>
+          <div class="knob" data-param="duration"></div>
+          <div class="spacer"></div>
+          <div class="btn-row">
+            <button class="btn" id="btn-load">
+              <svg viewBox="0 0 14 14"><path d="M7 10V2M3.5 5.5 7 2l3.5 3.5M2 12h10" stroke="currentColor" fill="none" stroke-width="1.4"/></svg>
+              LOAD
+            </button>
+            <button class="btn btn-primary" id="btn-shuffle">
+              <svg viewBox="0 0 14 14"><path d="M1 3.5h3l6 7h3M1 10.5h3l1.6-1.9M9.4 5.4 10 4.5h3M10.5 2.5 13 4.5l-2.5 2M10.5 11.5 13 9.5l-2.5-2" stroke="currentColor" fill="none" stroke-width="1.2"/></svg>
+              SHUFFLE
+            </button>
+            <button class="btn btn-toggle" id="btn-turbo">
+              <span class="led"></span>TURBO
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- SYNTH -->
+      <section class="panel" id="panel-synth">
+        <div class="panel-label">SYNTH</div>
+        <div class="panel-content synth-row">
+          <div class="knob" data-param="attack"></div>
+          <div class="knob" data-param="decay"></div>
+          <div class="knob" data-param="sustain"></div>
+          <div class="knob" data-param="release"></div>
+          <div class="knob-group-sep"></div>
+          <div class="knob" data-param="gain"></div>
+          <div class="knob" data-param="pan"></div>
+          <div class="spacer"></div>
+          <div class="pan-meter">
+            <div class="micro-label">OUTPUT</div>
+            <div class="meter-track"><div class="meter-fill" id="out-meter"></div></div>
+            <div class="meter-ticks"><span>L</span><span>C</span><span>R</span></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- WAVEFORM -->
+      <section class="panel panel-grow" id="panel-wave">
+        <div class="panel-label">SAMPLE &middot; WAVEFORM</div>
+        <div class="panel-content wave-content">
+          <canvas id="wave-canvas"></canvas>
+          <div class="wave-hint" id="wave-hint">
+            <div class="wave-hint-icon">
+              <svg viewBox="0 0 24 20"><path d="M4 13h3l2-6 3 10 3-8 2 4h3" stroke="currentColor" fill="none" stroke-width="1.5"/></svg>
+            </div>
+            <span>DROP AUDIO FILE</span>
+            <span class="wave-hint-sub">wav / aiff / flac / ogg / mp3</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- VISUALIZER -->
+      <section class="panel" id="panel-viz">
+        <div class="panel-label">SORT VISUALIZER</div>
+        <div class="panel-content viz-rows" id="viz-rows"></div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ================= FOOTER ================= -->
+  <footer id="footer">
+    <div class="footer-left">
+      <span class="fdot"></span>
+      <span id="footer-status">engine idle &middot; bubble &middot; 128 grains</span>
+    </div>
+    <div class="footer-right">UNPUREBLOOM &middot; JUCE WEBVIEW</div>
+  </footer>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>
