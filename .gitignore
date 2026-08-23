@@ -1,6 +1,7 @@
 # Build
 build/
 build-*/
+dist/
 out/
 *.obj
 *.lib

@@ -37,12 +37,22 @@
 
 ## 安装
 
-1. 将 `Sieve.vst3` 文件夹复制到 VST3 插件目录：
-   ```
-   C:\Program Files\Common Files\VST3\
-   ```
-2. 在 DAW 中重新扫描插件
-3. 在乐器/合成器分类中找到 **Sieve (UnpureBloom)**
+Windows 发行包使用 Bloom Pad 同款的管理员安装入口：双击 `Install.bat`。
+安装脚本会先检查完整 VST3 bundle、`moduleinfo.json`、WebView2 Runtime 和
+Microsoft Visual C++ 2015-2022 x64 Runtime；检查失败时会停止，不会安装半套文件。
+它会清理旧的 `Sieve.vst3` 后复制完整 bundle 到：
+
+```
+C:\Program Files\Common Files\VST3\Sieve.vst3
+```
+
+Standalone 可执行文件会复制到 `C:\Program Files\Sieve\Sieve.exe`。
+安装后在 DAW 中重新扫描插件，再找到 **Sieve (UnpureBloom)**。
+
+也可以用 `install.ps1 -DryRun` 只检查依赖和包内容，不修改系统文件。
+
+Windows 运行时依赖：WebView2 Runtime 和 Microsoft Visual C++ 2015-2022 x64
+Runtime。安装包不伪造或静默替代系统运行库；缺少时请先安装官方运行时。
 
 macOS 归档同时提供 VST3、AU 和 AUv3 构建。VST3 放入：
 

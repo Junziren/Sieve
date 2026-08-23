@@ -20,15 +20,23 @@ embedding developer-machine paths in the project.
 
 ## Archive Contents
 
-A release archive should contain the plugin bundle plus `README.md`, `LICENSE.md`
-and `THIRD_PARTY_LICENSES.md`. It must not contain the JUCE source tree, the
+A release archive should contain the plugin bundle plus the installer entrypoint,
+`README.md`, `LICENSE.md` and `THIRD_PARTY_LICENSES.md`. It must not contain the JUCE source tree, the
 WebView2 SDK, a developer's user-data folder or machine-specific build caches.
 
-The Windows archive can be produced with:
+The Windows archive follows the Bloom Pad installer layout and contains the
+complete `Sieve.vst3` bundle, `Standalone/Sieve.exe`, `Install.bat`,
+`install.ps1`, notices and a SHA-256 sidecar. The package can be produced with:
 
 ```powershell
 ./package_sieve.ps1 -Configuration Release -Version 1.0.0 -BuildDirectory build
 ```
+
+`Install.bat` elevates to administrator and invokes `install.ps1`. The installer
+removes only the existing Sieve bundle, verifies `moduleinfo.json`, checks the
+WebView2 and VC++ x64 runtime registry entries, copies the complete bundle and
+verifies the installed files. It deliberately stops when a runtime is missing;
+the ZIP does not bundle or replace shared Microsoft runtimes.
 
 ## Apple GitHub Action
 
