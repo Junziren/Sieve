@@ -8,9 +8,9 @@
 
 ## 一、项目概况
 
-**Sieve** 是一款基于排序算法的粒子（granular）合成器 VST3 插件：把音频切片成颗粒，MIDI 触发排序算法将打乱的颗粒排回原序，每次比较/交换触发一个颗粒播放。JUCE 8 / C++20 / CMake + Ninja / MSVC 2022 / Windows x64。
+**Sieve** 是一款基于排序算法的粒子（granular）合成器插件：把音频切片成颗粒，MIDI 触发排序算法将打乱的颗粒排回原序，每次比较/交换触发一个颗粒播放。JUCE 8 / C++20 / CMake + Ninja/Xcode / MSVC 2022 + Apple Clang / Windows x64 + macOS arm64/x86_64。
 
-- **技术栈**：JUCE 8.0.6（本地 `JUCE/` 目录，117MB，不入 git）、CMake 4.3.2、Ninja、WebView2（插件 UI）
+- **技术栈**：JUCE 8.0.12（本地 `JUCE/` 目录，117MB，不入 git）、CMake 4.3.2、Ninja/Xcode、WebView2/WKWebView（插件 UI）
 - **构建**：`build_sieve.bat`（配置+编译，位置无关）或手动：
   ```
   cmd /c "call D:\VS2022BuildTools\VC\Auxiliary\Build\vcvars64.bat && cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build"
@@ -71,6 +71,7 @@ E:\Sieve-restore\     旧提交 3cef388 的 git worktree（DSP 验收版的独�
 - git 仓库 + GitHub 私有远程（main 分支，全部已推送）
 - 三个构建脚本修复为位置无关（`%~dp0`），移除 vcvars 重定向坑
 - `?static` URL 参数禁用入场动画（供无头截图确定性验证）
+- GitHub Actions Apple release workflow 已加入：固定 JUCE 8.0.12，在 macOS arm64 和 Intel runner 上构建 VST3/AU/Standalone/AUv3，并上传带 SHA-256 的归档
 
 ---
 
@@ -107,6 +108,13 @@ E:\Sieve-restore\     旧提交 3cef388 的 git worktree（DSP 验收版的独�
 `77E075485F40D65B51F49D173982C1A4E7ED0B2047CB6EE221BCE98467C9786B`。
 
 **最近一次实测**：2026-08-23，用户在安装副本中将音频文件拖入波形区，成功加载；`DROP AUDIO FILE` 提示在加载后隐藏。
+
+**Apple CI 验证**：GitHub Actions run `32636028333` 于 2026-08-23 成功完成两套构建。产物已核对包含 VST3、AU、Standalone 和 AUv3 app extension：
+
+- `Sieve-v1.0.0-macos-arm64.zip`：`56d2d0b2532997ce748c8def8ea0f2d28dc04eafdca57eff0f47ebb79a15cc69`
+- `Sieve-v1.0.0-macos-x86_64.zip`：`7b3d035d38be032cb95b3375a698f906aa5de67822c6cf834b619428df1c8e2c`
+
+这两份是未使用发行证书签名/公证的验证归档，尚未代表 macOS DAW、AUv3 宿主或 iPhone/iPad 真机验收。
 
 **检查 WebView 界面（无需 DAW）**：
 ```

@@ -5,7 +5,7 @@
 ![Sieve](https://img.shields.io/badge/version-1.0.0-00d4ff)
 ![License](https://img.shields.io/badge/license-AGPLv3-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)
-![Format](https://img.shields.io/badge/format-VST3-orange)
+![Format](https://img.shields.io/badge/format-VST3%20%7C%20AU%20%7C%20AUv3-orange)
 
 ---
 
@@ -43,6 +43,20 @@
    ```
 2. 在 DAW 中重新扫描插件
 3. 在乐器/合成器分类中找到 **Sieve (UnpureBloom)**
+
+macOS 归档同时提供 VST3、AU 和 AUv3 构建。VST3 放入：
+
+```
+~/Library/Audio/Plug-Ins/VST3/
+```
+
+AU 放入：
+
+```
+~/Library/Audio/Plug-Ins/Components/
+```
+
+AUv3 需要使用经过 Apple 签名的宿主/Standalone 容器；GitHub Action 当前上传的是用于验证的未签名构建。
 
 ---
 
