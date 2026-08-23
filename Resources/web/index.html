@@ -48,10 +48,12 @@
         </div>
         <div class="control-group">
           <div class="micro-label">SLICES</div>
-          <div class="stepper" id="slice-stepper">
-            <button class="step-btn" data-dir="-1">&minus;</button>
-            <span class="step-value" id="slice-value">128</span>
-            <button class="step-btn" data-dir="1">+</button>
+          <div class="combo combo-sm" id="slice-combo" tabindex="0">
+            <div class="combo-button">
+              <span id="slice-value">128</span>
+              <svg class="combo-caret" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" fill="none" stroke-width="1.4"/></svg>
+            </div>
+            <div class="combo-list" id="slice-list"></div>
           </div>
         </div>
         <div class="knob" data-param="speed"></div>

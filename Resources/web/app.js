@@ -154,18 +154,28 @@ function buildCombo() {
   document.addEventListener("click", () => combo.classList.remove("open"));
 }
 
-function buildStepper() {
-  const el = document.getElementById("slice-stepper");
-  const val = document.getElementById("slice-value");
-  const clamp = n => Math.min(512, Math.max(4, n));
-  el.querySelectorAll(".step-btn").forEach(btn => {
-    btn.addEventListener("click", e => {
-      params.slices = clamp(params.slices + Number(btn.dataset.dir) * (e.shiftKey ? 16 : 4));
-      val.textContent = params.slices;
+// Same 8 options as the original editor's slice ComboBox
+const SLICE_OPTIONS = [4, 8, 16, 32, 64, 128, 256, 512];
+
+function buildSliceCombo() {
+  const combo = document.getElementById("slice-combo");
+  const list = document.getElementById("slice-list");
+  const valueEl = document.getElementById("slice-value");
+  SLICE_OPTIONS.forEach(n => {
+    const item = document.createElement("div");
+    item.className = "combo-item" + (n === params.slices ? " selected" : "");
+    item.innerHTML = `<span>${n}</span>`;
+    item.onclick = () => {
+      params.slices = n;
+      valueEl.textContent = n;
+      list.querySelectorAll(".combo-item").forEach(el => el.classList.remove("selected"));
+      item.classList.add("selected");
+      combo.classList.remove("open");
       updateStatus();
-    });
+    };
+    list.appendChild(item);
   });
-  val.addEventListener("dblclick", () => { params.slices = 128; val.textContent = 128; updateStatus(); });
+  combo.onclick = e => { combo.classList.toggle("open"); e.stopPropagation(); };
 }
 
 function buildButtons() {
@@ -334,7 +344,7 @@ function updateStatus() {
 /* ================= boot ================= */
 document.querySelectorAll(".knob").forEach(el => new Knob(el));
 buildCombo();
-buildStepper();
+buildSliceCombo();
 buildButtons();
 buildViz();
 updateStatus();
