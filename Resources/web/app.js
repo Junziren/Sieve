@@ -1,14 +1,20 @@
 /* Sieve WebView UI — visual shell only, no DSP connection.
-   Local state drives knobs, combo, stepper, placeholders and the demo
-   sort animation so the look-and-feel can be evaluated end to end. */
+   Control set mirrors the plugin 1:1:
+   algorithm / slices / speed / duration / attack / decay / sustain /
+   release / gain / pan / turbo + load / shuffle actions + waveform +
+   4-voice sort visualizer + status bar + About easter egg. */
 
 "use strict";
+
+// ?static disables entrance animations (deterministic screenshots)
+if (location.search.includes("static"))
+  document.documentElement.classList.add("no-anim");
 
 const params = {
   algorithm: "bubble",
   slices: 128,
-  speed: 30,        // ms per sort step
-  duration: 1.0,    // grain duration factor
+  speed: 30,        // ms per sort step (1–400)
+  duration: 1.0,    // grain duration factor (0.05–5.0)
   attack: 5, decay: 100, sustain: 0.7, release: 80,
   gain: 0.8, pan: 0.0,
   turbo: false,
@@ -100,7 +106,6 @@ class Knob {
     this.value = Math.min(this.def_.max, Math.max(this.def_.min, v));
     params[this.param] = this.value;
     this.render();
-    if (this.param === "pan") syncPanMeter();
     if (this.param === "speed") restartDemo();
   }
   render() {
@@ -124,7 +129,7 @@ class Knob {
   }
 }
 
-/* ================= combo / stepper / buttons ================= */
+/* ================= combo / stepper / buttons / about ================= */
 function buildCombo() {
   const combo = document.getElementById("algo-combo");
   const list = document.getElementById("algo-list");
@@ -172,21 +177,10 @@ function buildButtons() {
   document.getElementById("btn-load").onclick = () => {
     document.getElementById("wave-hint").classList.add("hidden");
   };
-  document.querySelectorAll(".rail-tab").forEach(tab => {
-    tab.onclick = () => {
-      document.querySelectorAll(".rail-tab").forEach(t => t.classList.remove("active"));
-      tab.classList.add("active");
-    };
-  });
-}
-
-function syncPanMeter() {
-  const meter = document.getElementById("out-meter");
-  const p = params.pan; // -1..1, 0 = center
-  const w = Math.abs(p) * 50 + (p === 0 ? 2 : 6);
-  meter.style.width = w + "%";
-  meter.style.marginLeft = (p < 0 ? 50 - w : 50) + "%";
-  meter.style.transform = "none";
+  // About easter egg: click the brand, dismiss on click anywhere
+  const about = document.getElementById("about");
+  document.getElementById("brand").onclick = e => { e.stopPropagation(); about.classList.remove("hidden"); };
+  about.onclick = () => about.classList.add("hidden");
 }
 
 /* ================= waveform placeholder ================= */
@@ -207,13 +201,11 @@ class WaveView {
     this.t += dt;
     const { cx, w, h } = this;
     cx.clearRect(0, 0, w, h);
-    // grid
     cx.strokeStyle = "rgba(255,255,255,0.045)";
     cx.lineWidth = 1;
     for (let x = 0; x <= w; x += w / 12) { cx.beginPath(); cx.moveTo(x, 0); cx.lineTo(x, h); cx.stroke(); }
     cx.beginPath(); cx.moveTo(0, h / 2); cx.lineTo(w, h / 2); cx.stroke();
 
-    // placeholder waveform: layered sines
     const mid = h / 2;
     const grad = cx.createLinearGradient(0, 0, 0, h);
     grad.addColorStop(0, "rgba(157,92,255,0.30)");
@@ -235,7 +227,6 @@ class WaveView {
     cx.strokeStyle = "rgba(201,166,255,0.85)"; cx.lineWidth = 1.4;
     cx.stroke();
 
-    // playhead with white marker (Current-style triangle handle)
     const px = ((this.t * 0.06) % 1) * w;
     cx.strokeStyle = "rgba(255,255,255,0.9)"; cx.lineWidth = 1;
     cx.beginPath(); cx.moveTo(px, 2); cx.lineTo(px, h - 2); cx.stroke();
@@ -255,7 +246,7 @@ class VoiceRow {
     this.flash = new Array(VIZ_BARS).fill(0);
     this.arr = Array.from({ length: VIZ_BARS }, (_, i) => i);
     this.shuffle();
-    this.i = 0; this.pass = 0; this.done = false; this.stepAcc = 0;
+    this.stepAcc = 0;
     this.size();
   }
   size() {
@@ -269,8 +260,9 @@ class VoiceRow {
       const j = Math.floor(Math.random() * (i + 1));
       [this.arr[i], this.arr[j]] = [this.arr[j], this.arr[i]];
     }
-    this.i = 0; this.pass = 0; this.done = false;
+    this.i = 0; this.pass = 0; this.done = false; this.stepAcc = 0;
   }
+  progress() { return this.done ? 1 : this.pass / (VIZ_BARS - 1); }
   step() {
     const a = this.arr, n = a.length;
     if (this.done) return;
@@ -283,13 +275,11 @@ class VoiceRow {
       this.flash[this.i] = 1; this.flash[this.i + 1] = 1;
     }
     this.i++;
-    this.lastTouch = this.i;
   }
   draw(dt) {
     this.stepAcc += dt;
-    const stepMs = params.speed;
     if (this.active && !params.turbo) {
-      while (this.stepAcc > stepMs) { this.step(); this.stepAcc -= stepMs; }
+      while (this.stepAcc > params.speed) { this.step(); this.stepAcc -= params.speed; }
     }
     const { cx, w, h } = this;
     cx.clearRect(0, 0, w, h);
@@ -327,19 +317,18 @@ function buildViz() {
   }
 }
 
-let demoTimer = null;
 function restartDemo(reshuffle) {
-  if (reshuffle) rows.forEach(r => { r.shuffle(); r.stepAcc = 0; });
+  if (reshuffle) rows.forEach(r => r.shuffle());
   updateStatus();
 }
 
-/* ================= status ================= */
+/* ================= status bar ================= */
 function updateStatus() {
-  const algo = ALGOS.find(a => a.id === params.algorithm);
-  document.getElementById("stat-grains").textContent = params.slices;
-  document.getElementById("stat-engine").textContent = "PREVIEW";
+  const active = rows.filter(r => r.active).length;
+  const parts = rows.map((r, i) =>
+    r.active ? `V${i + 1} ${Math.round(r.progress() * 100)}%` : null).filter(Boolean);
   document.getElementById("footer-status").textContent =
-    `engine preview \u00B7 ${algo.name.toLowerCase()} \u00B7 ${params.slices} grains \u00B7 ${params.speed} ms/step`;
+    `${active}/4 voices :: ${parts.join(" | ") || "\u2014"} :: ${params.slices} grains`;
 }
 
 /* ================= boot ================= */
@@ -348,14 +337,15 @@ buildCombo();
 buildStepper();
 buildButtons();
 buildViz();
-syncPanMeter();
 updateStatus();
 
 const wave = new WaveView(document.getElementById("wave-canvas"));
-let last = performance.now();
+let last = performance.now(), statusAcc = 0;
 (function loop(now) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
   wave.draw(dt);
   rows.forEach(r => r.draw(dt));
+  statusAcc += dt;
+  if (statusAcc > 0.25) { statusAcc = 0; updateStatus(); }
   requestAnimationFrame(loop);
 })(last);
