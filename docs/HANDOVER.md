@@ -53,7 +53,7 @@ E:\Sieve-restore\     旧提交 3cef388 的 git worktree（DSP 验收版的独�
 - note-off 只释放所属音符的颗粒；MIDI velocity 生效
 - 详见 PITFALLS.md Phase 7，其中记录了核心教训：**包络连续 ≠ 无爆音，波形连续才是判据**
 
-### 2. WebView2 插件界面（视觉完成，未连 DSP ⚠️）
+### 2. WebView2 插件界面（Current 风格保留，已建立 native bridge）
 - 设计语言来自 Minimal Audio **Current** 实机截图分析（近黑底 / 深灰面板 / 紫色高亮 / 白色播放头标记），Sieve 青色留给数据状态
 - 1100×660 固定窗口，`setResizable(false,false)`
 - 资源全部内嵌（`juce_add_binary_data(SieveWebUI)`，离线可用，无外部字体/CDN）
@@ -61,8 +61,11 @@ E:\Sieve-restore\     旧提交 3cef388 的 git worktree（DSP 验收版的独�
   `%USERPROFILE%\AppData\Local\PackageManagement\NuGet\Packages\Microsoft.Web.WebView2.1.0.3485.44\`，
   由 JUCE 的 FindWebView2.cmake 自动发现）——部署无需带 DLL，但终端用户机器需有 WebView2 运行时（Win11 默认自带）
 - **控件集已与插件 1:1 对齐**（范围/默认值逐一对照 `createParameterLayout`）：
-  算法下拉（9 种+复杂度角标）、切片数下拉（8 档）、Speed/Duration/ADSR/Gain/Pan 八个旋钮（可拖动/滚轮/双击复位，纯本地状态）、LOAD/SHUFFLE/TURBO 按钮、波形占位区（拖放提示+白色播放头动画）、4 行排序可视化（V1 演示冒泡动画，V2-V4 静默）、底部状态条（`x/4 voices :: Vn X% :: N grains` 格式）、About 彩蛋（点标题）
-- 右上角有黄色 "UI PREVIEW · DSP NOT CONNECTED" 徽标标识未接线状态
+  算法下拉（9 种+复杂度角标）、切片数下拉（8 档）、Speed/Duration/ADSR/Gain/Pan 八个旋钮、LOAD/TURBO 按钮、静态采样总览、4 行排序状态、底部状态条（`x/4 voices :: Vn X% :: N grains` 格式）、About 彩蛋（点标题）
+- 所有参数和主要动作都有悬停说明；About 已加入 `openFAD` 家族标识
+- WebView 通过 JUCE native function 接收 `uiReady`、参数手势和 LOAD；参数写入 APVTS，Turbo 写入 `performanceMode`
+- 波形区支持 WAV/AIFF/FLAC/OGG/MP3 拖放：原生编辑器接收文件路径，WebView 的 `FileReader` 通过 `loadFileData` bridge 传递标准 Base64；用户已在安装副本实测拖拽加载成功
+- Processor 以约 15Hz 的固定容量 `UiFrame` 快照推送真实 voice 排序状态、静态波形总览和播放位置；前端不再生成排序动画或伪造播放头
 
 ### 3. 环境与工程
 - git 仓库 + GitHub 私有远程（main 分支，全部已推送）
@@ -73,19 +76,17 @@ E:\Sieve-restore\     旧提交 3cef388 的 git worktree（DSP 验收版的独�
 
 ## 三、未完成（按优先级）
 
-### 1. UI ↔ DSP 接线（核心待办）
-界面所有控件目前是**纯 JS 本地状态，不与 APVTS 通信**。接线方案（JUCE 8 标准路径，参考 `JUCE/examples/Plugins/WebViewPluginDemo.h`）：
-- **参数绑定**：`juce::WebSliderRelay` / `WebComboBoxRelay` / `WebToggleButtonRelay` + 对应 `Web*ParameterAttachment`；JS 侧用 `juce` 全局对象（nativeIntegrationEnabled 时注入）的 slider/combo/toggle 控件替代现有自制 Knob
-- **动作按钮**（LOAD/SHUFFLE）：`withNativeFunction()` 注册回调（load 需在编辑器侧弹文件对话框，注意 VST3 内必须 launchAsync）
-- **可视化数据**：处理器 → 编辑器 → `webView->evaluateJavascript()` 或 `withEventListener` 推送：波形缩略数据（loadFile 后一次）、播放头位置、4 个 voice 的 `currentValues` 数组（约 30fps，原子快照）
-- **文件拖放**：`FileDragAndDropTarget` 在编辑器层实现后转发给 `loadFile`
-- 接线完成后：移除 "UI PREVIEW" 徽标；8 个旋钮和两个下拉改为 relay 控件（自制 Knob 可保留外观、只换事件层）
-- **验收标准**：DAW 中旋动任一控件音效实时变化；保存/恢复工程参数完整往返；可视化反映真实排序状态
+### 1. UI ↔ DSP 接线（首版已完成，部分宿主行为待验收）
+- 参数手势使用 `begin/change/end` 写入 APVTS；原生状态以约 15Hz 回传，宿主自动化和工程恢复可覆盖前端显示
+- LOAD 使用编辑器侧异步 `FileChooser`，加载期间调用 `suspendProcessing()`，随后推送真实波形总览
+- 拖放加载已接入并由用户实测成功；标准 Base64 数据先在 native bridge 解码，再复用同一套 DSP 文件加载路径
+- 可视化使用固定容量 `UiFrame` SPSC 快照：4 个 voice 的 `currentValues`、进度、暂停/完成状态和真实采样位置
+- **仍待验收**：DAW 中旋钮实际听感、工程保存/恢复、宿主自动化、编辑器反复开关和异常 WebView 生命周期
 
 ### 2. 版本与发布
-- `CMakeLists.txt` 仍为 `VERSION 1.0.0`（UI 里 v1.1.0 是占位文字）——接线完成后升版本号
+- `CMakeLists.txt` 仍为 `VERSION 1.0.0`（UI 已同步为真实版本）——接线完成后再升版本号
 - 未打 release tag / 未重新打 zip（`Sieve_v1.0.0.zip` 还是旧发布版）
-- README 的安装/界面章节仍描述旧版 JUCE 界面
+- 已新增 `docs/BUILD_AND_RELEASE.md`、`package_sieve.ps1`、`LICENSE.md` 和 `THIRD_PARTY_LICENSES.md`；发布前仍需把完整 AGPLv3 文本纳入 release archive
 
 ### 3. 遗留工程项
 - **旧 JUCE UI 文件**（`Source/UI/*`）仍编译未使用——作为回退保留，接线验收后可删
@@ -101,7 +102,11 @@ E:\Sieve-restore\     旧提交 3cef388 的 git worktree（DSP 验收版的独�
 
 ## 四、当前系统状态与验证方法
 
-**系统已安装**（`C:\Program Files\Common Files\VST3\Sieve.vst3`）：DSP 验收版（`3cef388`，原 JUCE 界面，参数全可控）。**WebView 版未安装**，按用户要求"先检查再装"。
+**系统已安装**（`C:\Program Files\Common Files\VST3\Sieve.vst3`）：当前 Release WebView 版，来源为
+`build\Source\Sieve_artefacts\Release\VST3\Sieve.vst3`。源文件与安装副本的 VST3 binary SHA-256 均为
+`77E075485F40D65B51F49D173982C1A4E7ED0B2047CB6EE221BCE98467C9786B`。
+
+**最近一次实测**：2026-08-23，用户在安装副本中将音频文件拖入波形区，成功加载；`DROP AUDIO FILE` 提示在加载后隐藏。
 
 **检查 WebView 界面（无需 DAW）**：
 ```
@@ -109,8 +114,9 @@ cd "E:\Sieve Source Code\Resources\web"
 python -m http.server 8791 --bind 127.0.0.1
 # 浏览器打开 http://127.0.0.1:8791/index.html（加 ?static 禁入场动画）
 ```
-**在 DAW 里试 WebView 版（临时替换，看完恢复）**：
-把 `build\Source\Sieve_artefacts\Release\VST3\Sieve.vst3` 拷入 VST3 目录，看完后从 `E:\Sieve-restore\build\...\Sieve.vst3` 拷回验收版。
+**在 DAW 里试当前 WebView 版**：
+确认 DAW 已完全退出后，将 `build\Source\Sieve_artefacts\Release\VST3\Sieve.vst3` 覆盖到
+`C:\Program Files\Common Files\VST3\Sieve.vst3`，再启动 DAW 并执行插件重扫。
 
 **截图验证**（无头 Chrome + 视觉模型）：
 ```

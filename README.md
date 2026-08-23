@@ -3,8 +3,8 @@
 > **Algorithmic Granular Synthesizer** — 基于排序算法的粒子合成器
 
 ![Sieve](https://img.shields.io/badge/version-1.0.0-00d4ff)
-![License](https://img.shields.io/badge/license-GPLv3-blue)
-![Platform](https://img.shields.io/badge/platform-Windows%20x64-lightgrey)
+![License](https://img.shields.io/badge/license-AGPLv3-blue)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)
 ![Format](https://img.shields.io/badge/format-VST3-orange)
 
 ---
@@ -26,9 +26,10 @@
 - **完整 ADSR 包络**：每个颗粒独立包络控制，塑造颗粒的起音和衰减
 - **实时可视化**：4 行柱状图动画，每行对应一个 voice，高度代表颗粒原始位置
 - **波形显示**：加载的音频波形总览，当前位置标记
-- **Shuffle 按钮**：随时打乱当前排序状态重新开始
 - **Turbo 模式**：高性能模式，跳过比较步骤的音频触发以降低 CPU 负载
-- **暗色主题**：cyberpunk 风格深色 UI，多色霓虹配色
+- **界面**：Current-inspired 暗色仪器界面；采样区是静态采样总览，不冒充实时示波器
+- **参数帮助**：悬停任一参数或动作即可查看用途说明
+- **原生接线**：WebView 参数通过 JUCE native bridge 写入 APVTS，排序状态和播放位置来自真实 DSP 快照
 - **文件拖放**：支持直接拖入 WAV/AIFF/FLAC/OGG/MP3 文件
 - **About 彩蛋**：点击标题"Sieve"弹出关于对话框
 
@@ -52,7 +53,7 @@
 │  Sieve                基于排序算法的粒子合成器        │
 ├─────────────────────────────────────────────────────┤
 │  SORT                                               │
-│  [算法▼] [切片数▼]  Speed ◉  Duration ◉  [Load][SHUFFLE][Turbo] │
+│  [算法▼] [切片数▼]  Speed ◉  Duration ◉  [Load][Turbo] │
 ├─────────────────────────────────────────────────────┤
 │  SYNTH                                              │
 │  Attack ◉  Decay ◉  Sustain ◉  Release ◉  Gain ◉  Pan ◉ │
@@ -253,17 +254,25 @@
 ## 构建
 
 ```bash
-# 要求: CMake 3.22+, MSVC 2022, JUCE 8, Windows SDK
-cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+# Windows: 要求 CMake 3.22+, MSVC 2022, JUCE 8, WebView2 SDK/runtime
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+  -DSIEVE_JUCE_DIR="E:/path/to/JUCE" \
+  -DJUCE_WEBVIEW2_PACKAGE_LOCATION="E:/path/to/Microsoft.Web.WebView2.*/"
 cmake --build build --config Release
 # 输出: build/Source/Sieve_artefacts/Release/VST3/Sieve.vst3
+
+# macOS: 使用 Xcode generator，可生成 VST3/AU；Xcode 下额外生成 AUv3
+cmake -B build-mac -G Xcode -DSIEVE_JUCE_DIR="/path/to/JUCE"
+cmake --build build-mac --config Release
 ```
+
+Windows 运行时需要系统安装 Microsoft Edge WebView2 Runtime；插件包不捆绑 WebView2 SDK、Loader 或 JUCE 源码。macOS 使用系统 WebKit，不依赖 Windows SDK。
 
 ---
 
 ## 许可
 
-**GPLv3 License** — 本插件使用 JUCE 框架（免费版），因此遵循 GPLv3 开源协议。
+**AGPLv3 License** — 本项目按 JUCE 8 开源路径使用 AGPLv3。JUCE 及其内置第三方依赖的许可说明见 `THIRD_PARTY_LICENSES.md`；商业 JUCE 许可用户应按对应商业条款构建与发布。
 
 ---
 

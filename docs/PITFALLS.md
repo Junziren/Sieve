@@ -42,7 +42,7 @@
 [2026-06-06] Component::paint 不能用 lambda 赋值 (C2659) → 必须用子类 override 虚函数
 [2026-06-06] PowerShell -replace 中 `n 不解析 → 用 @'...'@ 多行字符串
 [2026-06-06] DialogWindow 异步启动 → 用 LaunchOptions + launchAsync()
-[2026-06-06] JUCE 免费版 → 必须 GPLv3 许可 (不是 MIT)
+[2026-06-06] JUCE 8 开源许可判断过时 → 开源路径使用 AGPLv3，商业构建遵循 JUCE 商业许可
 [2026-06-06] VST3 安装包 → ZIP 包含 plugin.vst3/ + moduleinfo.json + README
 
 ## 新增通用踩坑
@@ -54,7 +54,7 @@
 | MSVC + UTF-8 中文 | /utf-8 编译选项 |
 | lambda paint | 子类 override |
 | PowerShell 字符串换行 | heredoc @' '@ |
-| JUCE 免费版许可 | GPLv3 |
+| JUCE 8 开源许可 | AGPLv3；商业构建遵循 JUCE 商业许可 |
 
 ## Phase 7: DSP 防爆音修复 (2026-08-23)
 [2026-08-23] 颗粒尾部硬切爆音（sustain 电平直接砍 0）→ setGrain 预计算 fadeOutLen = min(颗粒长×35%, 用户release)，且 ≥ 8×pitchRate 保证高速播放下平滑，renderNextBlock 按 remaining 乘线性窗
@@ -79,3 +79,4 @@
 [2026-08-23] BinaryData:: 符号要 #include <BinaryData.h>，链接 binary data target 后 include 路径自动可用
 [2026-08-23] Web UI 无头截图验证：chrome --headless --screenshot + --virtual-time-budget=4000（否则入场动画没播完，面板半透明）；emitImage 不生效时存 PNG 再用视觉模型分析
 [2026-08-23] WebView2 用户数据目录必须显式指定（temp/SieveWebView2），否则默认写宿主 DAW 目录可能无权限
+[2026-08-23] 波形区能显示 `DROP AUDIO FILE` 但拖放加载失败：浏览器 `FileReader.readAsDataURL()` 产生标准 Base64，而 `MemoryBlock::fromBase64Encoding()` 只接受 JUCE 旧的带点号格式 → 改用 `juce::Base64::convertFromBase64()` 写入 `MemoryOutputStream`，再复用 DSP 文件加载路径

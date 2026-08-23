@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include <algorithm>
 #include <random>
 
 namespace SortSynth {
@@ -54,6 +55,9 @@ void SortSynthAudioProcessor::prepareToPlay(double sampleRate, int maxBlock) {
     for (auto& v : grainVoices) v.prepare(sampleRate);
     for (auto& vs : voices) vs.reset();
     tickCounter = 0;
+    uiFrameAccumulator = 0.0;
+    uiFrameSequence = 0;
+    uiFrameQueue.reset();
 
     juce::dsp::ProcessSpec spec{
         sampleRate,
@@ -82,6 +86,9 @@ void SortSynthAudioProcessor::resetAllVoices() {
 void SortSynthAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi) {
     juce::ScopedNoDenormals noDenormals;
     buffer.clear();
+
+    if (isSuspended())
+        return;
 
     int   algoIdx = static_cast<int>(apvts.getRawParameterValue("algorithm")->load(std::memory_order_relaxed));
     float newSpeed = apvts.getRawParameterValue("sortSpeed")->load(std::memory_order_relaxed);
@@ -155,6 +162,8 @@ void SortSynthAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juc
 
     juce::dsp::AudioBlock<float> block(buffer);
     limiter.process(juce::dsp::ProcessContextReplacing<float>(block));
+
+    publishUiFrame(buffer.getNumSamples());
 }
 
 void SortSynthAudioProcessor::handleMidi(const juce::MidiBuffer& midi) {
@@ -183,7 +192,7 @@ void SortSynthAudioProcessor::processVoiceMessages() {
             if (slot >= 0) {
                 auto& vs = voices[slot];
                 if (vs.completed) {
-                    // Sort completed → shuffle and restart
+                    // Sort completed → build a fresh random order and restart
                     vs.softReset();
                     vs.midiNote = vm.midiNote;
                     vs.pitchRate = noteToRate(vm.midiNote);
@@ -266,6 +275,13 @@ void SortSynthAudioProcessor::advanceVoice(int voiceId) {
             grainIdx = vs.currentValues[static_cast<size_t>(grainIdx)];
 
         if (grainIdx >= 0 && grainIdx < static_cast<int>(grains.size())) {
+            const auto totalDurationMs = grainEngine.getTotalDurationMs();
+            vs.playbackPosition = totalDurationMs > 0.0
+                ? juce::jlimit(0.0f, 1.0f,
+                              static_cast<float>(grains[static_cast<size_t>(grainIdx)].startMs
+                                                  / totalDurationMs))
+                : 0.0f;
+
             // Reuse only fully-idle slots. Any steal - even deep in a grain's
             // tail fade - jumps the waveform to new content at the old level;
             // at the sort tick rate those jumps repeat periodically and are
@@ -293,6 +309,7 @@ void SortSynthAudioProcessor::advanceVoice(int voiceId) {
         // Sort complete → mark as completed & paused
         vs.completed = true;
         vs.paused = true;
+        vs.playbackPosition = 1.0f;
     }
 }
 
@@ -317,11 +334,94 @@ int SortSynthAudioProcessor::stealVoice() {
 LoadResult SortSynthAudioProcessor::loadFile(const juce::File& file) {
     for (auto& gv : grainVoices) gv.reset();
     for (auto& vs : voices) vs.reset();
+    waveformPointCount = 0;
+    waveformMin.fill(0.0f);
+    waveformMax.fill(0.0f);
+    ++waveformGeneration;
+
     auto result = grainEngine.loadFile(file, currentSampleRate);
     if (result == LoadResult::OK) {
         grainEngine.sliceBuffer(currentSliceCount);
+        updateWaveformOverview();
     }
     return result;
+}
+
+void SortSynthAudioProcessor::updateWaveformOverview() {
+    const auto& audioBuffer = grainEngine.getAudioBuffer();
+    const int totalSamples = audioBuffer.getNumSamples();
+
+    if (!grainEngine.isLoaded() || totalSamples <= 0) {
+        waveformPointCount = 0;
+        return;
+    }
+
+    const auto* samples = audioBuffer.getReadPointer(0);
+    waveformPointCount = juce::jmin(UI_WAVEFORM_POINTS, totalSamples);
+
+    for (int point = 0; point < waveformPointCount; ++point) {
+        const int start = (point * totalSamples) / waveformPointCount;
+        const int end = juce::jmax(start + 1, ((point + 1) * totalSamples) / waveformPointCount);
+        float minValue = 1.0f;
+        float maxValue = -1.0f;
+
+        for (int sample = start; sample < juce::jmin(end, totalSamples); ++sample) {
+            minValue = juce::jmin(minValue, samples[sample]);
+            maxValue = juce::jmax(maxValue, samples[sample]);
+        }
+
+        waveformMin[static_cast<size_t>(point)] = minValue;
+        waveformMax[static_cast<size_t>(point)] = maxValue;
+    }
+}
+
+void SortSynthAudioProcessor::copySampleOverview(
+    std::array<float, UI_WAVEFORM_POINTS>& minValues,
+    std::array<float, UI_WAVEFORM_POINTS>& maxValues,
+    int& pointCount,
+    uint64_t& generation) const {
+    minValues = waveformMin;
+    maxValues = waveformMax;
+    pointCount = waveformPointCount;
+    generation = waveformGeneration;
+}
+
+void SortSynthAudioProcessor::publishUiFrame(int blockSamples) {
+    uiFrameAccumulator += static_cast<double>(juce::jmax(0, blockSamples))
+                          / juce::jmax(1.0, currentSampleRate);
+    if (uiFrameAccumulator < (1.0 / 15.0))
+        return;
+
+    uiFrameAccumulator -= (1.0 / 15.0);
+
+    UiFrame frame;
+    frame.sliceCount = currentSliceCount;
+    frame.sampleLoaded = grainEngine.isLoaded();
+    frame.waveformPointCount = waveformPointCount;
+    frame.sampleGeneration = waveformGeneration;
+    frame.sequence = ++uiFrameSequence;
+    frame.waveformMin = waveformMin;
+    frame.waveformMax = waveformMax;
+
+    for (int voiceIndex = 0; voiceIndex < MAX_VOICES; ++voiceIndex) {
+        const auto& source = voices[voiceIndex];
+        auto& target = frame.voices[static_cast<size_t>(voiceIndex)];
+        target.valueCount = juce::jmin(UI_MAX_SLICES,
+                                       static_cast<int>(source.currentValues.size()));
+        target.stepIndex = source.stepIndex;
+        target.totalSteps = source.totalSteps;
+        target.midiNote = source.midiNote;
+        target.playbackPosition = source.playbackPosition;
+        target.active = source.active;
+        target.paused = source.paused;
+        target.completed = source.completed;
+
+        if (target.valueCount > 0)
+            std::copy_n(source.currentValues.begin(), target.valueCount,
+                        target.currentValues.begin());
+    }
+
+    uiFrameQueue.push(frame);
 }
 
 void SortSynthAudioProcessor::getStateInformation(juce::MemoryBlock& data) {

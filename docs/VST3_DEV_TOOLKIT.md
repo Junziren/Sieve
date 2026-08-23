@@ -197,7 +197,7 @@ MIDI 输入 → SPSC 无锁队列 → processVoiceMessages()
 ```cpp
 struct VoiceState {
     bool paused;    // note-off → 保存 currentValues/stepIndex
-    bool completed; // 排序完成 → 下次按键重新 shuffle
+    bool completed; // 排序完成 → 下次按键生成新的随机初始序列
 };
 
 // 松开键：paused = true → advanceVoice 跳过
@@ -324,7 +324,7 @@ xcopy /Y /E build\Source\*_artefacts\Release\VST3\*.vst3 "C:\Program Files\Commo
 - [ ] 安装包 ZIP 包含 `Plugin.vst3/` + `README.md`
 - [ ] `moduleinfo.json` 随 VST3 打包
 - [ ] 版本号与 CMake/Bundle ID 一致
-- [ ] 许可协议明确标注（JUCE 免费版 → **GPLv3**）
+- [ ] 许可协议明确标注（JUCE 8 开源路径 → **AGPLv3**；商业构建遵循 JUCE 商业许可）
 - [ ] About 对话框可访问
 - [ ] 无硬编码绝对路径
 - [ ] 中文路径已清理或通过 subst 解决

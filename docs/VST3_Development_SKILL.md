@@ -222,12 +222,12 @@ void advanceVoice(int voiceId) {
 ```cpp
 struct VoiceState {
     bool paused = false;     // note-off mid-sort → preserve state
-    bool completed = false;  // sort finished → next press reshuffles
+    bool completed = false;  // sort finished → next press builds a fresh random order
 };
 
 // Note-off → paused=true (advanceVoice skips)
 // Note-on  → if paused voice exists, resume; else new voice
-// Sort end → reset + completed=true (no auto-reshuffle)
+// Sort end → completed=true; the next note-on rebuilds a fresh random order
 ```
 
 ### Thread safety
@@ -307,7 +307,7 @@ opts.launchAsync();
 | W1 | PowerShell `` `n `` in `-replace` not parsed | Use `@"..."@` heredoc |
 | W2 | `LookAndFeel` leak on editor close | Always `setLookAndFeel(nullptr)` in destructor |
 | W3 | `getName()` mismatch with DAW display | Keep consistent with CMake `PRODUCT_NAME` |
-| W4 | JUCE free edition license assumed MIT | **Must be GPLv3** (JUCE dual-license) |
+| W4 | JUCE 8 license assumed GPLv3 | **Use AGPLv3 for the open-source path, or follow the commercial JUCE license** |
 
 ---
 
@@ -317,7 +317,7 @@ opts.launchAsync();
 - [ ] `moduleinfo.json` present in VST3 bundle
 - [ ] ZIP package contains `Plugin.vst3/` folder structure + `README.md`
 - [ ] Version matches across: CMake → `PRODUCT_NAME` → `getName()` → ZIP filename
-- [ ] License correctly declared as GPLv3 (JUCE free edition)
+- [ ] License correctly declared as AGPLv3 for the open-source JUCE path, or the commercial JUCE license
 - [ ] About dialog accessible and accurate
 - [ ] No hardcoded absolute paths in source
 - [ ] Tested in target DAW (Ableton/FL/Cubase/Reaper)
