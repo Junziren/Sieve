@@ -3,6 +3,16 @@
 
 namespace SortSynth {
 
+// 4-point Catmull-Rom: much stronger imaging suppression than linear
+// interpolation on tonal material, for a few extra MACs per sample.
+static inline float catmullRom(float p0, float p1, float p2, float p3, float t) {
+    float t2 = t * t;
+    float t3 = t2 * t;
+    return 0.5f * (2.0f * p1 + (p2 - p0) * t
+         + (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t2
+         + (3.0f * p1 - p0 - 3.0f * p2 + p3) * t3);
+}
+
 GrainVoice::GrainVoice() { recalcRates(); }
 
 void GrainVoice::prepare(double sr) {
@@ -44,8 +54,14 @@ void GrainVoice::setGrain(const Grain& g, const float* buf, int len,
 
 void GrainVoice::noteOn() {
     if (active.load(std::memory_order_acquire) && envLevel > 0.0001f) {
-        // Slot stolen mid-grain: blend down from the current level over ~2ms
-        stealFadeLevel = envLevel;
+        // Blend down from the slot's actual output level (envelope x tail
+        // window). Blending from the raw envelope makes a stolen tail voice
+        // jump UP in amplitude - a periodic buzz at the sort tick rate.
+        double remaining = static_cast<double>(grainEndSample) - playbackPos;
+        double window = 1.0;
+        if (fadeOutLen > 0.0 && remaining < fadeOutLen)
+            window = juce::jlimit(0.0, 1.0, remaining / fadeOutLen);
+        stealFadeLevel = envLevel * static_cast<float>(window);
         stealFadeSamples = stealFadeLen;
     } else {
         stealFadeLevel = 0.0f;
@@ -120,13 +136,19 @@ void GrainVoice::renderNextBlock(juce::AudioBuffer<float>& output, int start, in
         if (fadeOutLen > 0.0 && remaining < fadeOutLen)
             windowGain = static_cast<float>(remaining / fadeOutLen);
 
-        // Sample with linear interpolation
+        // Sample with Catmull-Rom interpolation (linear near the buffer edges)
         if (sourceData && playbackPos >= 0.0 && playbackPos < static_cast<double>(sourceLength)) {
             int idx = static_cast<int>(playbackPos);
             float frac = static_cast<float>(playbackPos - idx);
             float s0 = sourceData[idx];
             float s1 = (idx + 1 < sourceLength) ? sourceData[idx + 1] : s0;
-            float samp = (s0 + (s1 - s0) * frac) * env * windowGain * velocityScale * mg;
+            float interp;
+            if (idx >= 1 && idx + 2 < sourceLength) {
+                interp = catmullRom(sourceData[idx - 1], s0, s1, sourceData[idx + 2], frac);
+            } else {
+                interp = s0 + (s1 - s0) * frac;
+            }
+            float samp = interp * env * windowGain * velocityScale * mg;
             L[i] += samp * panL;
             R[i] += samp * panR;
         }

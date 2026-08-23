@@ -26,7 +26,7 @@ public:
     bool isActive() const           { return active.load(std::memory_order_acquire); }
     bool isTailFading() const       { return active.load(std::memory_order_acquire)
                                           && fadeOutLen > 0.0
-                                          && static_cast<double>(grainEndSample) - playbackPos < fadeOutLen * 0.5; }
+                                          && static_cast<double>(grainEndSample) - playbackPos < fadeOutLen * 0.2; }
     double getPlaybackPos() const   { return playbackPos; }
     int    getSourceLength() const  { return sourceLength; }
     int    getOwnerNote() const     { return ownerNote; }
