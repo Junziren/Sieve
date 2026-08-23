@@ -30,5 +30,30 @@ The Windows archive can be produced with:
 ./package_sieve.ps1 -Configuration Release -Version 1.0.0 -BuildDirectory build
 ```
 
+## Apple GitHub Action
+
+`.github/workflows/apple-release.yml` builds the Apple formats with the Xcode
+generator on both Apple Silicon and Intel macOS runners. It checks out JUCE
+8.0.12 at the exact commit used by the project, builds `VST3`, `AU`,
+`Standalone`, and `AUv3`, then uploads a ZIP and SHA-256 file for each
+architecture.
+
+The workflow can be started from GitHub's Actions page or with GitHub CLI:
+
+```bash
+gh workflow run apple-release.yml --ref main
+gh run watch
+```
+
+The reusable packaging step is `scripts/package_apple.sh`. It requires the
+`Sieve.vst3`, `Sieve.component`, standalone app, and `Sieve.appex` bundles, so
+an accidental build that omits AUv3 fails instead of producing an incomplete
+Apple archive.
+
+The first Apple workflow intentionally produces unsigned validation artifacts.
+Distribution signing, notarization, and TestFlight submission require Apple
+certificates and protected GitHub secrets and must be added as a separate
+release job after the unsigned build passes.
+
 Do not install the generated plugin into a system plugin directory until it has
 been inspected and accepted in a host.
