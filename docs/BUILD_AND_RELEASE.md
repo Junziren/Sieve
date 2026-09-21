@@ -26,7 +26,8 @@ WebView2 SDK, a developer's user-data folder or machine-specific build caches.
 
 The Windows archive follows the Bloom Pad installer layout and contains the
 complete `Sieve.vst3` bundle, `Standalone/Sieve.exe`, `Install.bat`,
-`install.ps1`, notices and a SHA-256 sidecar. The package can be produced with:
+`install.ps1`, the bundled Microsoft runtimes, notices, a package manifest and a
+SHA-256 sidecar. The package can be produced with:
 
 ```powershell
 ./package_sieve.ps1 -Configuration Release -Version 1.0.0 -BuildDirectory build
@@ -35,8 +36,26 @@ complete `Sieve.vst3` bundle, `Standalone/Sieve.exe`, `Install.bat`,
 `Install.bat` elevates to administrator and invokes `install.ps1`. The installer
 removes only the existing Sieve bundle, verifies `moduleinfo.json`, checks the
 WebView2 and VC++ x64 runtime registry entries, copies the complete bundle and
-verifies the installed files. It deliberately stops when a runtime is missing;
-the ZIP does not bundle or replace shared Microsoft runtimes.
+verifies the installed files.
+
+When a runtime is missing, the installer runs the copy bundled in
+`Dependencies\` with the vendor's silent switches instead of requiring network
+access. Both bundled files must carry a valid Microsoft Corporation
+Authenticode signature or the installer refuses to run them. Cached downloads
+live in the git-ignored `dependencies/` folder; refresh them with
+`scripts/fetch_windows_dependencies.ps1`, which re-verifies the signature on
+every run. `package_sieve.ps1` fetches anything missing automatically and
+records versions and SHA-256 hashes in `Dependencies/dependencies.json` and
+`PACKAGE_MANIFEST.txt`.
+
+Verify the package without touching the system:
+
+```powershell
+./install.ps1 -DryRun
+```
+
+It reports whether each runtime is already installed or would be installed from
+the bundle, and lists the plugin destinations.
 
 ## Apple GitHub Action
 

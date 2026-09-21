@@ -38,8 +38,9 @@
 ## 安装
 
 Windows 发行包使用 Bloom Pad 同款的管理员安装入口：双击 `Install.bat`。
-安装脚本会先检查完整 VST3 bundle、`moduleinfo.json`、WebView2 Runtime 和
-Microsoft Visual C++ 2015-2022 x64 Runtime；检查失败时会停止，不会安装半套文件。
+它会先检查完整 VST3 bundle 和 `moduleinfo.json`，再检查 WebView2 Runtime 与
+Microsoft Visual C++ 2015-2022 x64 Runtime；两者缺失时直接从包内 `Dependencies\`
+静默安装，因此整包可离线部署。依赖安装失败时脚本会停止，不会留下半套插件文件。
 它会清理旧的 `Sieve.vst3` 后复制完整 bundle 到：
 
 ```
@@ -51,8 +52,17 @@ Standalone 可执行文件会复制到 `C:\Program Files\Sieve\Sieve.exe`。
 
 也可以用 `install.ps1 -DryRun` 只检查依赖和包内容，不修改系统文件。
 
-Windows 运行时依赖：WebView2 Runtime 和 Microsoft Visual C++ 2015-2022 x64
-Runtime。安装包不伪造或静默替代系统运行库；缺少时请先安装官方运行时。
+Windows 运行时依赖已内嵌在发行包中，无需联网：
+
+| 包内文件 | 内容 |
+| --- | --- |
+| `Dependencies\MicrosoftEdgeWebView2RuntimeInstallerX64.exe` | Microsoft Edge WebView2 Evergreen Standalone 离线安装器（x64） |
+| `Dependencies\vc_redist.x64.exe` | Microsoft Visual C++ 2015-2022 Redistributable（x64） |
+
+这两个文件直接来自微软官方分发地址，安装前会校验 Authenticode 签名必须为
+Microsoft Corporation，否则拒绝执行。`Dependencies\dependencies.json` 记录版本、
+大小和 SHA-256；包根目录的 `PACKAGE_MANIFEST.txt` 记录插件二进制与依赖哈希。
+重新打包时用 `scripts\fetch_windows_dependencies.ps1` 获取或刷新依赖。
 
 macOS 默认提供 Intel / Apple Silicon Universal 的 VST3、AU 和 Standalone 构建，目标系统为 macOS 11+。AUv3 为可选实验格式。完整构建、安装与验证说明见 [macOS 指南](docs/MACOS.md)。VST3 放入：
 

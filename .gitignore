@@ -3,6 +3,9 @@ build/
 build-*/
 dist/
 out/
+
+# Official Microsoft runtime installers fetched at package time (large binaries)
+dependencies/
 *.obj
 *.lib
 *.dll
