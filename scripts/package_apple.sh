@@ -11,7 +11,7 @@ vst_binary="$artifact_root/VST3/Sieve.vst3/Contents/MacOS/Sieve"
 [[ -f "$vst_binary" ]] || { echo "Missing binary: $vst_binary" >&2; exit 1; }
 version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$artifact_root/VST3/Sieve.vst3/Contents/Info.plist")"
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Invalid bundle version' >&2; exit 1; }
-architectures="$(lipo -archs "$vst_binary")"
+architectures="$(lipo "$vst_binary" -archs)"
 case "$architectures" in
     'arm64 x86_64'|'x86_64 arm64') architecture=universal ;;
     arm64|x86_64) architecture="$architectures" ;;
@@ -41,7 +41,7 @@ copy_bundle() {
     executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$source/Contents/Info.plist")"
     local arch
     for arch in $architectures; do
-        lipo -verify_arch "$arch" "$source/Contents/MacOS/$executable"
+        lipo "$source/Contents/MacOS/$executable" -verify_arch "$arch"
     done
 
     mkdir -p "$(dirname "$destination")"
