@@ -9,7 +9,8 @@ on:
       - 'Source/**'
       - 'Resources/web/**'
       - 'Resources/branding/**'
-      - 'scripts/**'
+      - 'scripts/package_apple.sh'
+      - 'scripts/build_apple.sh'
   push:
     branches:
       - main
@@ -21,7 +22,8 @@ on:
       - 'README.md'
       - 'LICENSE.md'
       - 'THIRD_PARTY_LICENSES.md'
-      - 'scripts/**'
+      - 'scripts/package_apple.sh'
+      - 'scripts/build_apple.sh'
       - 'Resources/branding/**'
       - 'docs/MACOS.md'
       - 'docs/UI_REDESIGN.md'
