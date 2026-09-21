@@ -284,7 +284,30 @@ bash scripts/build_apple.sh
 BUILD_DIR=build-mac-auv3 SIEVE_BUILD_AUV3=ON bash scripts/build_apple.sh
 ```
 
-Windows 运行时需要系统安装 Microsoft Edge WebView2 Runtime；插件包不捆绑 WebView2 SDK、Loader 或 JUCE 源码。macOS 使用系统 WebKit，不依赖 Windows SDK。
+Windows 运行时需要 Microsoft Edge WebView2 Runtime；VST3 bundle 本身不带 WebView2 SDK、
+Loader 或 JUCE 源码，运行库由 Windows 安装包负责部署。macOS 使用系统 WebKit，不依赖 Windows SDK。
+
+### 本地打包
+
+Windows 安装包在本机生成；macOS 产物只能在 Apple 工具链上构建，因此由 GitHub Actions
+构建后拉回本地。两端产物都汇总到 `dist\`：
+
+```powershell
+# Windows：构建插件、下载并校验官方运行库、生成离线安装包和 SHA-256
+cmake --build build --config Release --target Sieve_VST3 Sieve_Standalone --parallel 4
+./package_sieve.ps1 -Configuration Release -Version 1.0.0
+
+# macOS：拉取最近一次成功的 Apple Release Build 归档并校验哈希、结构与架构
+./scripts/fetch_apple_artifacts.ps1
+```
+
+`fetch_apple_artifacts.ps1` 默认取最新一次成功的 Apple workflow，也可以用 `-RunId` 指定某次运行。
+它会对每个 `Sieve-v*-macos-*.zip` 校验 SHA-256，然后在不解压的前提下检查 VST3 / AU /
+Standalone bundle 和 AUv3 扩展的 Mach-O 架构——Windows 解压会把 `.app` 内的符号链接破坏成普通文件，
+所以校验直接读 ZIP 条目。也可以用 `-SkipVerification` 只下载，或单独运行
+`./scripts/verify_apple_packages.ps1` 复查已有产物。
+
+下载回来的 macOS 归档是未签名、未公证的验证构建。
 
 ---
 

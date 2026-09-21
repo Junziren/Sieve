@@ -78,6 +78,27 @@ when enabled in CMake, packaging requires its extension inside the standalone
 app. Package names and architecture checks come from the built binaries.
 See [MACOS.md](MACOS.md) for local Universal builds and acceptance checks.
 
+### Pulling Apple artifacts to a non-Apple workstation
+
+macOS bundles cannot be produced without Apple toolchains, so `dist/` on a
+Windows workstation is filled from CI:
+
+```powershell
+./scripts/fetch_apple_artifacts.ps1 [-RunId <id>] [-Version 1.0.0]
+```
+
+The script resolves the latest successful `apple-release.yml` run (or the given
+run), downloads the `arm64`, `x86_64` and `universal` artifacts, verifies each
+archive against its SHA-256 sidecar, and then calls
+`scripts/verify_apple_packages.ps1`. That verifier reads the ZIP entries
+directly instead of extracting them, because Windows extraction turns the
+symlinks inside `.app`/`.vst3` bundles into ordinary files. It confirms which
+Mach-O architectures are present in the VST3, AU and Standalone binaries and
+whether the arm64 build embeds `Sieve.appex`.
+
+Artifacts pulled this way are unsigned validation builds; signing and
+notarization remain separate release steps.
+
 The first Apple workflow intentionally produces unsigned validation artifacts.
 Distribution signing, notarization, and TestFlight submission require Apple
 certificates and protected GitHub secrets and must be added as a separate
