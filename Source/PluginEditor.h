@@ -13,6 +13,7 @@ public:
 
     void paint(juce::Graphics&) override;
     void resized() override;
+    void visibilityChanged() override;
 
 private:
     void timerCallback() override;
@@ -27,6 +28,8 @@ private:
     void fileDragExit(const juce::StringArray&) override;
     void filesDropped(const juce::StringArray&, int, int) override;
     void sendParameterState();
+    void sendParameterInfo();
+    void endParameterGestures();
     void sendSampleOverview();
     void sendUiFrame(const SortSynthAudioProcessor::UiFrame&);
     juce::var makeParameterState() const;
@@ -38,6 +41,9 @@ private:
     std::unique_ptr<juce::FileChooser> fileChooser;
     juce::Label loadErrorLabel;
     bool uiReady = false;
+    bool uiActive = true;
+    int readyWaitTicks = 0;
+    juce::StringArray activeParameterGestures;
     bool sampleLoadInProgress = false;
     uint64_t lastSampleGeneration = 0;
 

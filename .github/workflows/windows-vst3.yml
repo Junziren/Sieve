@@ -1,0 +1,147 @@
+name: Windows VST3 Validation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/windows-vst3.yml'
+      - 'CMakeLists.txt'
+      - 'Source/**'
+      - 'Resources/web/**'
+      - 'Resources/branding/**'
+      - 'pluginval/config.json'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/windows-vst3.yml'
+      - 'CMakeLists.txt'
+      - 'Source/**'
+      - 'Resources/web/**'
+      - 'Resources/branding/**'
+      - 'pluginval/config.json'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-vst3-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JUCE_TAG: '8.0.12'
+  JUCE_COMMIT: '29396c22c93392d6738e021b83196283d6e4d850'
+  WEBVIEW2_VERSION: '1.0.3485.44'
+  PLUGINVAL_VERSION: '1.0.4'
+
+jobs:
+  validate:
+    name: Windows VST3 contract
+    runs-on: windows-2022
+
+    steps:
+      - name: Check out Sieve
+        uses: actions/checkout@v4
+
+      - name: Enable MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Restore JUCE cache
+        id: juce-cache
+        uses: actions/cache@v4
+        with:
+          path: JUCE
+          key: juce-${{ env.JUCE_COMMIT }}-windows
+
+      - name: Fetch pinned JUCE
+        if: steps.juce-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: git clone --depth 1 --branch "$env:JUCE_TAG" https://github.com/juce-framework/JUCE.git JUCE
+
+      - name: Verify pinned JUCE
+        shell: pwsh
+        run: |
+          $actual = git -C JUCE rev-parse HEAD
+          if ($actual -ne $env:JUCE_COMMIT) { throw "Unexpected JUCE commit: $actual" }
+
+      - name: Install WebView2 SDK for CMake
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'webview2'
+          $package = Join-Path $root "Microsoft.Web.WebView2.$env:WEBVIEW2_VERSION"
+          New-Item -ItemType Directory -Force -Path $package | Out-Null
+          $zip = Join-Path $env:RUNNER_TEMP 'webview2.nupkg.zip'
+          Invoke-WebRequest "https://www.nuget.org/api/v2/package/Microsoft.Web.WebView2/$env:WEBVIEW2_VERSION" -OutFile $zip
+          Expand-Archive -Path $zip -DestinationPath $package -Force
+          if (-not (Test-Path (Join-Path $package 'build/native/include/WebView2.h'))) {
+            throw 'WebView2.h was not found in the downloaded SDK'
+          }
+
+      - name: Configure Release build
+        shell: pwsh
+        run: |
+          cmake -S . -B build-ci -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DSIEVE_JUCE_DIR="$env:GITHUB_WORKSPACE/JUCE" `
+            -DJUCE_WEBVIEW2_PACKAGE_LOCATION="$env:RUNNER_TEMP/webview2"
+
+      - name: Build VST3 and Standalone
+        shell: pwsh
+        run: cmake --build build-ci --config Release --target Sieve_VST3 Sieve_Standalone --parallel 3
+
+      - name: Check complete VST3 bundle
+        shell: pwsh
+        run: |
+          $plugin = Join-Path $env:GITHUB_WORKSPACE 'build-ci/Source/Sieve_artefacts/Release/VST3/Sieve.vst3'
+          $binary = Join-Path $plugin 'Contents/x86_64-win/Sieve.vst3'
+          $moduleInfo = Join-Path $plugin 'Contents/Resources/moduleinfo.json'
+          foreach ($path in @($binary, $moduleInfo)) {
+            if (-not (Test-Path $path)) { throw "Missing VST3 bundle file: $path" }
+          }
+          Write-Host "VST3 bundle: $plugin"
+          Get-FileHash $binary -Algorithm SHA256
+
+      - name: Download pluginval
+        shell: pwsh
+        run: |
+          $zip = Join-Path $env:RUNNER_TEMP 'pluginval.zip'
+          $dir = Join-Path $env:RUNNER_TEMP 'pluginval'
+          Invoke-WebRequest "https://github.com/Tracktion/pluginval/releases/download/v$env:PLUGINVAL_VERSION/pluginval_Windows.zip" -OutFile $zip
+          Expand-Archive -Path $zip -DestinationPath $dir -Force
+          $exe = Get-ChildItem $dir -Filter pluginval.exe -Recurse | Select-Object -First 1
+          if ($null -eq $exe) { throw 'pluginval.exe was not found' }
+          "PLUGINVAL_EXE=$($exe.FullName)" | Out-File $env:GITHUB_ENV -Append
+
+      - name: Run non-UI VST3 validation
+        shell: pwsh
+        run: |
+          $plugin = Join-Path $env:GITHUB_WORKSPACE 'build-ci/Source/Sieve_artefacts/Release/VST3/Sieve.vst3'
+          & $env:PLUGINVAL_EXE `
+            --validate $plugin `
+            --strictness-level 5 `
+            --skip-gui-tests `
+            --timeout-ms 30000
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Publish validation summary
+        if: always()
+        shell: pwsh
+        run: |
+          @"
+          ## Windows VST3 validation
+          
+          - Release VST3 bundle: built and inspected
+          - pluginval: non-UI validation requested with GUI tests skipped
+          - UI integration in a real WebView2 host/DAW: **pending manual verification**
+          "@ | Out-File $env:GITHUB_STEP_SUMMARY -Encoding utf8
+
+      - name: Upload VST3 bundle
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sieve-v${{ github.sha }}-windows-vst3
+          path: build-ci/Source/Sieve_artefacts/Release/VST3/Sieve.vst3
+          if-no-files-found: error
+          retention-days: 14

@@ -26,9 +26,9 @@
 - **完整 ADSR 包络**：每个颗粒独立包络控制，塑造颗粒的起音和衰减
 - **实时可视化**：4 行柱状图动画，每行对应一个 voice，高度代表颗粒原始位置
 - **波形显示**：加载的音频波形总览，当前位置标记
-- **Turbo 模式**：高性能模式，跳过比较步骤的音频触发以降低 CPU 负载
-- **界面**：Current-inspired 暗色仪器界面；采样区是静态采样总览，不冒充实时示波器
-- **参数帮助**：悬停任一参数或动作即可查看用途说明
+- **Turbo 模式**：尽快推进排序，改变粒子触发节奏；可能显著增加 CPU 占用
+- **界面**：冷灰 / 蓝色现代工作台，按采样、排序、声部和塑形分区；采样区显示真实静态波形总览
+- **参数帮助**：底部显示参数帮助；旋钮支持 Shift 精调、键盘、数值输入和双击复位
 - **原生接线**：WebView 参数通过 JUCE native bridge 写入 APVTS，排序状态和播放位置来自真实 DSP 快照
 - **文件拖放**：支持直接拖入 WAV/AIFF/FLAC/OGG/MP3 文件
 - **About 彩蛋**：点击标题"Sieve"弹出关于对话框
@@ -54,7 +54,7 @@ Standalone 可执行文件会复制到 `C:\Program Files\Sieve\Sieve.exe`。
 Windows 运行时依赖：WebView2 Runtime 和 Microsoft Visual C++ 2015-2022 x64
 Runtime。安装包不伪造或静默替代系统运行库；缺少时请先安装官方运行时。
 
-macOS 归档同时提供 VST3、AU 和 AUv3 构建。VST3 放入：
+macOS 默认提供 Intel / Apple Silicon Universal 的 VST3、AU 和 Standalone 构建，目标系统为 macOS 11+。AUv3 为可选实验格式。完整构建、安装与验证说明见 [macOS 指南](docs/MACOS.md)。VST3 放入：
 
 ```
 ~/Library/Audio/Plug-Ins/VST3/
@@ -72,26 +72,9 @@ AUv3 需要使用经过 Apple 签名的宿主/Standalone 容器；GitHub Action 
 
 ## 界面指南
 
-```
-┌─────────────────────────────────────────────────────┐
-│  Sieve                基于排序算法的粒子合成器        │
-├─────────────────────────────────────────────────────┤
-│  SORT                                               │
-│  [算法▼] [切片数▼]  Speed ◉  Duration ◉  [Load][Turbo] │
-├─────────────────────────────────────────────────────┤
-│  SYNTH                                              │
-│  Attack ◉  Decay ◉  Sustain ◉  Release ◉  Gain ◉  Pan ◉ │
-├─────────────────────────────────────────────────────┤
-│  ════════════ 音频波形 ═══════════════════════════ │
-├─────────────────────────────────────────────────────┤
-│  V1 ▓▓░░▓░▓░░░▓▓░░                                   │
-│  V2     ░▓▓░░▓░░░▓▓░░░                                │
-│  V3         ░░░▓▓▓░░░▓▓░░                               │
-│  V4             ░░▓▓░░░▓▓░░░                              │
-├─────────────────────────────────────────────────────┤
-│  2/4 voices :: V1 67% | V2 34% :: 128 grains         │
-└─────────────────────────────────────────────────────┘
-```
+界面按采样、排序、声部、塑形分区：上方载入音频，左上设置排序与切片，左下调节 ADSR 包络与输出；右侧整列展示四个声部的粒子次序、音符、进度和运行状态。
+
+旋钮支持拖动、Shift 精调、滚轮、键盘、直接数值输入和双击复位。详细交互及验证方法见 [UI 改版说明](docs/UI_REDESIGN.md)。
 
 ### 操作流程
 
@@ -285,9 +268,10 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
 cmake --build build --config Release
 # 输出: build/Source/Sieve_artefacts/Release/VST3/Sieve.vst3
 
-# macOS: 使用 Xcode generator，可生成 VST3/AU；Xcode 下额外生成 AUv3
-cmake -B build-mac -G Xcode -DSIEVE_JUCE_DIR="/path/to/JUCE"
-cmake --build build-mac --config Release
+# macOS: Xcode + JUCE 8.0.12；默认生成 Universal VST3 / AU / Standalone 和 ZIP
+bash scripts/build_apple.sh
+# 可选 AUv3：用独立构建目录，扩展嵌入 Standalone 容器
+BUILD_DIR=build-mac-auv3 SIEVE_BUILD_AUV3=ON bash scripts/build_apple.sh
 ```
 
 Windows 运行时需要系统安装 Microsoft Edge WebView2 Runtime；插件包不捆绑 WebView2 SDK、Loader 或 JUCE 源码。macOS 使用系统 WebKit，不依赖 Windows SDK。

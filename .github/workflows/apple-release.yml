@@ -2,6 +2,14 @@ name: Apple Release Build
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/apple-release.yml'
+      - 'CMakeLists.txt'
+      - 'Source/**'
+      - 'Resources/web/**'
+      - 'Resources/branding/**'
+      - 'scripts/**'
   push:
     branches:
       - main
@@ -13,7 +21,10 @@ on:
       - 'README.md'
       - 'LICENSE.md'
       - 'THIRD_PARTY_LICENSES.md'
-      - 'scripts/package_apple.sh'
+      - 'scripts/**'
+      - 'Resources/branding/**'
+      - 'docs/MACOS.md'
+      - 'docs/UI_REDESIGN.md'
 
 permissions:
   contents: read
@@ -37,10 +48,19 @@ jobs:
         include:
           - runner: macos-14
             architecture: arm64
+            cmake_architectures: arm64
+            auv3: 'ON'
             label: macOS arm64
           - runner: macos-15-intel
             architecture: x86_64
+            cmake_architectures: x86_64
+            auv3: 'OFF'
             label: macOS Intel
+          - runner: macos-14
+            architecture: universal
+            cmake_architectures: 'arm64;x86_64'
+            auv3: 'OFF'
+            label: macOS Universal
 
     steps:
       - name: Check out Sieve
@@ -72,19 +92,28 @@ jobs:
         run: |
           cmake -S . -B build -G Xcode \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_OSX_ARCHITECTURES="${{ matrix.architecture }}" \
+            -DCMAKE_OSX_ARCHITECTURES="${{ matrix.cmake_architectures }}" \
             -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 \
+            -DSIEVE_BUILD_AUV3="${{ matrix.auv3 }}" \
             -DSIEVE_JUCE_DIR="$GITHUB_WORKSPACE/JUCE"
 
-      - name: Build VST3, AU, Standalone and AUv3
+      - name: Build Apple formats
         run: cmake --build build --config Release --target Sieve_All --parallel 3
+
+      - name: Validate installed Audio Unit
+        run: |
+          mkdir -p "$HOME/Library/Audio/Plug-Ins/Components"
+          ditto build/Source/Sieve_artefacts/Release/AU/Sieve.component \
+            "$HOME/Library/Audio/Plug-Ins/Components/Sieve.component"
+          killall -9 AudioComponentRegistrar || true
+          auval -v aumu Siev UPBL
 
       - name: Package Apple artifacts
         env:
           SIEVE_ARCH: ${{ matrix.architecture }}
+          BUILD_DIR: build
         run: |
-          chmod +x scripts/package_apple.sh
-          ./scripts/package_apple.sh
+          bash scripts/package_apple.sh
 
       - name: Upload Apple artifacts
         uses: actions/upload-artifact@v7

@@ -41,10 +41,10 @@ the ZIP does not bundle or replace shared Microsoft runtimes.
 ## Apple GitHub Action
 
 `.github/workflows/apple-release.yml` builds the Apple formats with the Xcode
-generator on both Apple Silicon and Intel macOS runners. It checks out JUCE
-8.0.12 at the exact commit used by the project, builds `VST3`, `AU`,
-`Standalone`, and `AUv3`, then uploads a ZIP and SHA-256 file for each
-architecture.
+generator on Apple Silicon and Intel macOS runners, plus a Universal build.
+It checks out JUCE 8.0.12 at the exact commit used by the project, builds `VST3`,
+`AU` and `Standalone`, and enables experimental `AUv3` in the arm64 job. It
+validates the installed AU with auval, then uploads a ZIP and SHA-256 sidecar.
 
 The workflow can be started from GitHub's Actions page or with GitHub CLI:
 
@@ -54,9 +54,10 @@ gh run watch
 ```
 
 The reusable packaging step is `scripts/package_apple.sh`. It requires the
-`Sieve.vst3`, `Sieve.component`, standalone app, and `Sieve.appex` bundles, so
-an accidental build that omits AUv3 fails instead of producing an incomplete
-Apple archive.
+`Sieve.vst3`, `Sieve.component` and standalone app bundles. AUv3 is optional;
+when enabled in CMake, packaging requires its extension inside the standalone
+app. Package names and architecture checks come from the built binaries.
+See [MACOS.md](MACOS.md) for local Universal builds and acceptance checks.
 
 The first Apple workflow intentionally produces unsigned validation artifacts.
 Distribution signing, notarization, and TestFlight submission require Apple

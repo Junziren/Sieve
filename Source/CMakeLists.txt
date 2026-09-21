@@ -1,7 +1,7 @@
 set(SIEVE_PLUGIN_FORMATS VST3 Standalone)
 if(APPLE)
     list(APPEND SIEVE_PLUGIN_FORMATS AU)
-    if(CMAKE_GENERATOR STREQUAL "Xcode")
+    if(SIEVE_BUILD_AUV3)
         list(APPEND SIEVE_PLUGIN_FORMATS AUv3)
     endif()
 endif()
@@ -12,7 +12,7 @@ juce_add_plugin(Sieve
     PLUGIN_CODE        Siev
     FORMATS            ${SIEVE_PLUGIN_FORMATS}
     PRODUCT_NAME       "Sieve"
-    VERSION            "1.0.0"
+    VERSION            "${PROJECT_VERSION}"
     BUNDLE_ID          "com.unpurebloom.sieve"
     IS_SYNTH           TRUE
     NEEDS_MIDI_INPUT   TRUE

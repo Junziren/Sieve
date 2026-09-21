@@ -59,6 +59,8 @@ SortSynthAudioProcessorEditor::SortSynthAudioProcessorEditor(SortSynthAudioProce
                                            [this](const auto&, auto complete)
                                            {
                                                uiReady = true;
+                                               loadErrorLabel.setVisible(false);
+                                               sendParameterInfo();
                                                sendParameterState();
                                                sendSampleOverview();
                                                if (complete != nullptr)
@@ -78,6 +80,31 @@ SortSynthAudioProcessorEditor::SortSynthAudioProcessorEditor(SortSynthAudioProce
                                            [this](const auto& args, auto complete)
                                            {
                                                handleLoadFileData(args, std::move(complete));
+                                           })
+                       .withNativeFunction("setUiActive",
+                                           [this](const auto& args, auto complete)
+                                           {
+                                               if (args.size() == 1 && args[0].isBool()) {
+                                                   uiActive = static_cast<bool>(args[0]);
+                                                   if (!uiActive) endParameterGestures();
+                                               }
+                                               if (complete != nullptr) complete(true);
+                                           })
+                       .withNativeFunction("parameterContext",
+                                           [this](const auto& args, auto complete)
+                                           {
+                                               bool shown = false;
+                                               if (args.size() >= 1 && args[0].isString()
+                                                   && isAllowedParameter(args[0].toString())) {
+                                                   if (auto* context = getHostContext()) {
+                                                       if (auto menu = context->getContextMenuForParameter(
+                                                               processor.apvts.getParameter(args[0].toString()))) {
+                                                           menu->showNativeMenu(getMouseXYRelative());
+                                                           shown = true;
+                                                       }
+                                                   }
+                                               }
+                                               if (complete != nullptr) complete(shown);
                                            })
                        .withResourceProvider(serveWebResource);
 
@@ -106,7 +133,8 @@ SortSynthAudioProcessorEditor::SortSynthAudioProcessorEditor(SortSynthAudioProce
         "Embedded browser unavailable\n\nSieve needs the platform WebView runtime\n(WebView2 on Windows, WebKit on Apple).",
         juce::dontSendNotification);
     loadErrorLabel.setJustificationType(juce::Justification::centred);
-    loadErrorLabel.setColour(juce::Label::textColourId, juce::Colour(0xffb3b3bc));
+    loadErrorLabel.setColour(juce::Label::textColourId, juce::Colour(0xff242c38));
+    loadErrorLabel.setColour(juce::Label::backgroundColourId, juce::Colour(0xffe9edf2));
     loadErrorLabel.setVisible(false);
     addChildComponent(loadErrorLabel);
 
@@ -118,12 +146,19 @@ SortSynthAudioProcessorEditor::SortSynthAudioProcessorEditor(SortSynthAudioProce
 SortSynthAudioProcessorEditor::~SortSynthAudioProcessorEditor()
 {
     stopTimer();
+    endParameterGestures();
     fileChooser.reset();
     webView.reset();
 }
 
 void SortSynthAudioProcessorEditor::timerCallback()
 {
+    if (!uiReady && ++readyWaitTicks >= 120)
+        loadErrorLabel.setVisible(true);
+    if (!isShowing() || !uiActive) {
+        endParameterGestures();
+        return;
+    }
     if (!uiReady || webView == nullptr)
         return;
 
@@ -166,13 +201,18 @@ void SortSynthAudioProcessorEditor::handleSetParameter(
                     const auto rawValue = range.snapToLegalValue(
                         juce::jlimit(range.start, range.end, rawInput));
 
-                    if (phase == "begin")
+                    if (phase == "begin" && !activeParameterGestures.contains(parameterId)) {
+                        activeParameterGestures.add(parameterId);
                         parameter->beginChangeGesture();
+                    }
 
-                    parameter->setValueNotifyingHost(range.convertTo0to1(rawValue));
+                    if (phase == "change" && activeParameterGestures.contains(parameterId))
+                        parameter->setValueNotifyingHost(range.convertTo0to1(rawValue));
 
-                    if (phase == "end")
+                    if (phase == "end" && activeParameterGestures.contains(parameterId)) {
+                        activeParameterGestures.removeString(parameterId);
                         parameter->endChangeGesture();
+                    }
 
                     succeeded = true;
                 }
@@ -206,8 +246,11 @@ void SortSynthAudioProcessorEditor::handleLoadFile(
 
             const auto file = chooser.getResult();
             safeThis->fileChooser.reset();
-            if (!file.existsAsFile())
+            if (!file.existsAsFile()) {
+                if (safeThis->webView != nullptr)
+                    safeThis->webView->emitEventIfBrowserIsVisible("sieveStatus", juce::var("Load cancelled"));
                 return;
+            }
             safeThis->loadSampleFile(file);
         });
 
@@ -323,6 +366,38 @@ void SortSynthAudioProcessorEditor::sendParameterState()
 {
     if (webView != nullptr)
         webView->emitEventIfBrowserIsVisible("sieveParameterState", makeParameterState());
+}
+
+void SortSynthAudioProcessorEditor::sendParameterInfo()
+{
+    auto info = juce::DynamicObject::Ptr(new juce::DynamicObject());
+    for (auto* candidate : processor.getParameters()) {
+        if (auto* parameter = dynamic_cast<juce::RangedAudioParameter*>(candidate)) {
+            const auto& range = parameter->getNormalisableRange();
+            auto item = juce::DynamicObject::Ptr(new juce::DynamicObject());
+            item->setProperty("min", range.start);
+            item->setProperty("max", range.end);
+            item->setProperty("step", range.interval > 0.0f ? range.interval : 0.001f);
+            item->setProperty("skew", range.skew);
+            item->setProperty("def", parameter->convertFrom0to1(parameter->getDefaultValue()));
+            info->setProperty(parameter->paramID, juce::var(item.get()));
+        }
+    }
+    if (webView != nullptr)
+        webView->emitEventIfBrowserIsVisible("sieveParameterInfo", juce::var(info.get()));
+}
+
+void SortSynthAudioProcessorEditor::endParameterGestures()
+{
+    for (const auto& id : activeParameterGestures)
+        if (auto* parameter = processor.apvts.getParameter(id))
+            parameter->endChangeGesture();
+    activeParameterGestures.clear();
+}
+
+void SortSynthAudioProcessorEditor::visibilityChanged()
+{
+    if (!isShowing()) endParameterGestures();
 }
 
 void SortSynthAudioProcessorEditor::sendSampleOverview()
@@ -449,7 +524,7 @@ juce::String SortSynthAudioProcessorEditor::loadResultToString(LoadResult result
 
 void SortSynthAudioProcessorEditor::paint(juce::Graphics& g)
 {
-    g.fillAll(juce::Colour(0xff101014));
+    g.fillAll(juce::Colour(0xffe9edf2));
 }
 
 void SortSynthAudioProcessorEditor::resized()

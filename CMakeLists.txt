@@ -1,5 +1,15 @@
 cmake_minimum_required(VERSION 3.22)
+
+# Set before project() so compiler probes use the same minimum OS as the plugin.
+if(CMAKE_HOST_APPLE AND NOT DEFINED CMAKE_OSX_DEPLOYMENT_TARGET)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
+endif()
 project(Sieve VERSION 1.0.0 LANGUAGES CXX C)
+
+option(SIEVE_BUILD_AUV3 "Build the experimental AUv3 extension (requires macOS/Xcode)" OFF)
+if(SIEVE_BUILD_AUV3 AND (NOT APPLE OR NOT CMAKE_GENERATOR STREQUAL "Xcode"))
+    message(FATAL_ERROR "SIEVE_BUILD_AUV3 requires macOS and the Xcode generator")
+endif()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
